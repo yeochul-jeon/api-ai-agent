@@ -1,0 +1,14 @@
+services:
+  api-agent:
+    build: .
+    ports:
+      - "3000:3000"
+    environment:
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - OPENAI_BASE_URL=${OPENAI_BASE_URL:-https://api.openai.com/v1}
+      - API_AGENT_DEBUG=${API_AGENT_DEBUG:-false}
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:3000/actuator/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3

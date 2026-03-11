@@ -1,0 +1,47 @@
+spring:
+  application:
+    name: api-agent
+  threads:
+    virtual:
+      enabled: true
+  ai:
+    openai:
+      api-key: ${OPENAI_API_KEY:}
+      base-url: ${OPENAI_BASE_URL:https://api.openai.com/v1}
+    mcp:
+      server:
+        name: ${api-agent.mcp-name:API Agent}
+        version: 0.1.0
+
+server:
+  port: ${API_AGENT_PORT:3000}
+
+api-agent:
+  mcp-name: ${API_AGENT_MCP_NAME:API Agent}
+  service-name: ${API_AGENT_SERVICE_NAME:api-agent}
+  model-name: ${API_AGENT_MODEL_NAME:gpt-4o}
+  reasoning-effort: ${API_AGENT_REASONING_EFFORT:}
+  max-agent-turns: ${API_AGENT_MAX_AGENT_TURNS:30}
+  max-response-chars: ${API_AGENT_MAX_RESPONSE_CHARS:50000}
+  max-schema-chars: ${API_AGENT_MAX_SCHEMA_CHARS:32000}
+  max-preview-rows: ${API_AGENT_MAX_PREVIEW_ROWS:10}
+  max-tool-response-chars: ${API_AGENT_MAX_TOOL_RESPONSE_CHARS:32000}
+  max-polls: ${API_AGENT_MAX_POLLS:20}
+  default-poll-delay-ms: ${API_AGENT_DEFAULT_POLL_DELAY_MS:3000}
+  debug: ${API_AGENT_DEBUG:false}
+  cors-allowed-origins: ${API_AGENT_CORS_ALLOWED_ORIGINS:*}
+  enable-recipes: ${API_AGENT_ENABLE_RECIPES:true}
+  recipe-cache-size: ${API_AGENT_RECIPE_CACHE_SIZE:64}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics
+  endpoint:
+    health:
+      show-details: when-authorized
+
+logging:
+  level:
+    com.apiagent: ${API_AGENT_LOG_LEVEL:INFO}
