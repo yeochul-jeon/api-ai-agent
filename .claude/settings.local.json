@@ -1,0 +1,36 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(wc -l /Users/cjenm/poc/api-agent/api_agent/**/*.py)",
+      "Bash(find /Users/cjenm/poc/api-ai-agent -name \".*\" -o -type f | grep -v \"^\\\\.$\" | grep -v \"^\\\\.\\\\.$\")",
+      "Bash(find /Users/cjenm/poc/api-agent -type d -name \"api_agent\" | head -1 | xargs -I {} ls -la {})",
+      "Bash(find /Users/cjenm/poc/api-agent -type d -name \"graphql\" -o -type d -name \"rest\" | xargs -I {} find {} -type f -name \"*.py\" | head -15)",
+      "WebSearch",
+      "mcp__plugin_serena_serena__list_dir",
+      "Bash(which gradle:*)",
+      "Bash(gradle wrapper:*)",
+      "Bash(gradle --version 2>&1 | head -5)",
+      "Bash(curl -sL https://raw.githubusercontent.com/gradle/gradle/v8.12.0/gradlew -o gradlew && curl -sL https://raw.githubusercontent.com/gradle/gradle/v8.12.0/gradlew.bat -o gradlew.bat && chmod +x gradlew && head -3 gradlew)",
+      "Bash(curl -sL \"https://raw.githubusercontent.com/gradle/gradle/v8.12.0/gradle/wrapper/gradle-wrapper.jar\" -o gradle/wrapper/gradle-wrapper.jar && ls -la gradle/wrapper/gradle-wrapper.jar)",
+      "Bash(java -version 2>&1)",
+      "Bash(./gradlew --version 2>&1 | tail -10)",
+      "Bash(./gradlew compileJava 2>&1)",
+      "Bash(asdf list:*)",
+      "Bash(asdf local:*)",
+      "Bash(asdf set:*)",
+      "Bash(./gradlew test:*)",
+      "Bash(./gradlew build:*)",
+      "Bash(find src/test -name \"*.java\" -exec grep -c \"@Test\" {} +)",
+      "Bash(git init:*)",
+      "Bash(gh auth:*)",
+      "Bash(git branch:*)",
+      "Bash(gh repo:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git remote:*)",
+      "Bash(find /Users/cjenm/poc/api-ai-agent/src/test -type f -name \"*.java\" | wc -l; find /Users/cjenm/poc/api-ai-agent/src/test -type f -name \"*.java\" -exec grep -l \"@Test\" {} \\\\; | sort)",
+      "Bash(ls /Users/cjenm/poc/api-ai-agent/docker-compose* 2>/dev/null; ls /Users/cjenm/poc/api-ai-agent/*.yml /Users/cjenm/poc/api-ai-agent/*.yaml 2>/dev/null | grep -v node_modules)",
+      "Bash(git push:*)"
+    ]
+  }
+}

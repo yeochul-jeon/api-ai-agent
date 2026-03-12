@@ -1,7 +1,7 @@
 # API AI Agent
 
 자연어 질의를 GraphQL/REST API 호출로 변환하는 **MCP(Model Context Protocol) 서버**입니다.
-Python FastMCP 기반의 [api-agent](../api-agent)를 Spring Boot로 포팅한 프로젝트입니다.
+Agoda의 오픈소스 프로젝트 [api-agent](https://github.com/agoda-com/api-agent)에서 영감을 받아, Spring Boot 생태계에 맞게 재설계한 프로젝트입니다.
 
 ## 기술 스택
 
@@ -139,4 +139,8 @@ MCP 요청 시 다음 HTTP 헤더를 통해 대상 API를 지정합니다:
 
 ## 라이선스
 
-Private
+이 프로젝트는 [MIT 라이선스](./LICENSE)를 따릅니다.
+
+## 감사의 글
+
+이 프로젝트는 [Agoda의 api-agent](https://github.com/agoda-com/api-agent)에서 영감을 받았습니다.
