@@ -4,6 +4,7 @@ import org.springframework.ai.tool.ToolCallbackProvider;
 import org.springframework.ai.tool.method.MethodToolCallbackProvider;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Lazy;
 
 import com.apiagent.mcp.McpToolProvider;
 
@@ -15,7 +16,7 @@ import com.apiagent.mcp.McpToolProvider;
 public class McpServerConfig {
 
     @Bean
-    public ToolCallbackProvider mcpToolCallbackProvider(McpToolProvider toolProvider) {
+    public ToolCallbackProvider mcpToolCallbackProvider(@Lazy McpToolProvider toolProvider) {
         return MethodToolCallbackProvider.builder()
                 .toolObjects(toolProvider)
                 .build();
