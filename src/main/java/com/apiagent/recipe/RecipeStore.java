@@ -65,9 +65,10 @@ public class RecipeStore {
         synchronized (lock) {
             var rec = records.get(recipeId);
             if (rec == null) return null;
-            rec.setLastUsedAt(System.currentTimeMillis() / 1000.0);
+            var updated = rec.withLastUsedAt(System.currentTimeMillis() / 1000.0);
+            records.put(recipeId, updated);
             touch(recipeId);
-            return new HashMap<>(rec.recipe());
+            return new HashMap<>(updated.recipe());
         }
     }
 
@@ -195,7 +196,7 @@ public class RecipeStore {
                 normalized = mapper.writer()
                         .withDefaultPrettyPrinter()
                         .writeValueAsString(parsed);
-            } catch (Exception ignored) {
+            } catch (Exception _) {
             }
 
             var digest = MessageDigest.getInstance("SHA-256");

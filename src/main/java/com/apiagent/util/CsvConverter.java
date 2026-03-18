@@ -72,7 +72,7 @@ public class CsvConverter {
             return "";
         } finally {
             if (tempFile != null) {
-                try { Files.deleteIfExists(tempFile); } catch (IOException ignored) {}
+                try { Files.deleteIfExists(tempFile); } catch (IOException _) {}
             }
         }
     }
