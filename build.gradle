@@ -53,8 +53,6 @@ dependencies {
     // JSON processing (Jackson 3 - Spring Boot 4.x)
     implementation 'tools.jackson.dataformat:jackson-dataformat-yaml'
 
-    // Properties migrator (임시 - 마이그레이션 완료 후 제거)
-    runtimeOnly 'org.springframework.boot:spring-boot-properties-migrator'
 
     // Observability
     implementation 'io.micrometer:micrometer-tracing-bridge-otel'
