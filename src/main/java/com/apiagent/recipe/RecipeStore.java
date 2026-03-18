@@ -190,7 +190,7 @@ public class RecipeStore {
             // JSON 정규화 시도
             var normalized = text;
             try {
-                var mapper = new com.fasterxml.jackson.databind.ObjectMapper();
+                var mapper = new tools.jackson.databind.ObjectMapper();
                 var parsed = mapper.readTree(text);
                 normalized = mapper.writer()
                         .withDefaultPrettyPrinter()

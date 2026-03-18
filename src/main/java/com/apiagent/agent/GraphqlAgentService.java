@@ -14,7 +14,7 @@ import com.apiagent.client.graphql.GraphqlClient;
 import com.apiagent.config.ApiAgentProperties;
 import com.apiagent.context.RequestContext;
 import com.apiagent.executor.DuckDbExecutor;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 
 import lombok.RequiredArgsConstructor;
 

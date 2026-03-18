@@ -17,7 +17,7 @@ import org.springframework.ai.chat.messages.UserMessage;
 import org.springframework.ai.chat.model.ChatResponse;
 import org.springframework.ai.chat.model.Generation;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 
 /**
  * 멀티턴 에이전트 루프 (ChatClient 기반).
@@ -123,7 +123,10 @@ public class AgentRunner {
                             toolCall.id(), toolCall.name(), result));
                 }
 
-                messages.add(new ToolResponseMessage(toolResponses, Map.of()));
+                messages.add(ToolResponseMessage.builder()
+                        .responses(toolResponses)
+                        .metadata(Map.of())
+                        .build());
 
             } catch (Exception e) {
                 log.error("에이전트 루프 오류 (turn {})", tracker.current(), e);
