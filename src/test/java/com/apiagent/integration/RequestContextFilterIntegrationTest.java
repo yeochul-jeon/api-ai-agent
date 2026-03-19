@@ -42,7 +42,7 @@ class RequestContextFilterIntegrationTest {
     }
 
     @Test
-    void 필터_후_ThreadLocal이_정리된다() {
+    void 필터_후_ScopedValue가_정리된다() {
         var headers = new HttpHeaders();
         headers.set("X-Target-URL", "https://api.example.com/graphql");
         headers.set("X-API-Type", "graphql");
@@ -54,7 +54,7 @@ class RequestContextFilterIntegrationTest {
                 String.class
         );
 
-        // 요청 완료 후 현재 스레드의 ThreadLocal은 비어있어야 함
+        // 요청 완료 후 현재 스레드의 ScopedValue는 바인딩 해제되어야 함
         assertThat(RequestContextHolder.get()).isNull();
     }
 

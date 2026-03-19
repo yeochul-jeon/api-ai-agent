@@ -18,7 +18,7 @@ import jakarta.servlet.ServletResponse;
 import jakarta.servlet.http.HttpServletRequest;
 
 /**
- * HTTP 헤더에서 RequestContext를 파싱하여 ThreadLocal에 설정하는 필터.
+ * HTTP 헤더에서 RequestContext를 파싱하여 ScopedValue에 바인딩하는 필터.
  */
 @Component
 @Order(1)
@@ -29,28 +29,35 @@ public class RequestContextFilter implements Filter {
     @Override
     public void doFilter(ServletRequest request, ServletResponse response, FilterChain chain)
             throws IOException, ServletException {
-        try {
-            if (request instanceof HttpServletRequest httpReq) {
-                var targetUrl = httpReq.getHeader("X-Target-URL");
-                var apiType = httpReq.getHeader("X-API-Type");
+        if (request instanceof HttpServletRequest httpReq) {
+            var targetUrl = httpReq.getHeader("X-Target-URL");
+            var apiType = httpReq.getHeader("X-API-Type");
 
-                if (targetUrl != null && apiType != null) {
-                    var ctx = new RequestContext(
-                            targetUrl,
-                            apiType,
-                            parseJsonMap(httpReq.getHeader("X-Target-Headers")),
-                            parseJsonList(httpReq.getHeader("X-Allow-Unsafe-Paths")),
-                            httpReq.getHeader("X-Base-URL"),
-                            parseBoolean(httpReq.getHeader("X-Include-Result")),
-                            parseJsonList(httpReq.getHeader("X-Poll-Paths"))
-                    );
-                    RequestContextHolder.set(ctx);
+            if (targetUrl != null && apiType != null) {
+                var ctx = new RequestContext(
+                        targetUrl,
+                        apiType,
+                        parseJsonMap(httpReq.getHeader("X-Target-Headers")),
+                        parseJsonList(httpReq.getHeader("X-Allow-Unsafe-Paths")),
+                        httpReq.getHeader("X-Base-URL"),
+                        parseBoolean(httpReq.getHeader("X-Include-Result")),
+                        parseJsonList(httpReq.getHeader("X-Poll-Paths"))
+                );
+                try {
+                    ScopedValue.where(RequestContextHolder.SCOPE, ctx)
+                            .call(() -> { chain.doFilter(request, response); return null; });
+                } catch (Exception e) {
+                    switch (e) {
+                        case IOException io -> throw io;
+                        case ServletException se -> throw se;
+                        case RuntimeException re -> throw re;
+                        default -> throw new ServletException(e);
+                    }
                 }
+                return;
             }
-            chain.doFilter(request, response);
-        } finally {
-            RequestContextHolder.clear();
         }
+        chain.doFilter(request, response);
     }
 
     @SuppressWarnings("unchecked")
