@@ -48,7 +48,7 @@ dependencies {
     implementation 'org.duckdb:duckdb_jdbc:1.2.1'
 
     // Fuzzy matching
-    implementation 'me.xdrop:fuzzywuzzy:1.4.0'
+    implementation 'org.apache.commons:commons-text:1.13.0'
 
     // JSON processing (Jackson 3 - Spring Boot 4.x)
     implementation 'tools.jackson.dataformat:jackson-dataformat-yaml'
