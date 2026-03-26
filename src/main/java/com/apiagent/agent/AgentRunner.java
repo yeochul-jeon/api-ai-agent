@@ -17,7 +17,8 @@ import org.springframework.ai.chat.messages.UserMessage;
 import org.springframework.ai.chat.model.ChatResponse;
 import org.springframework.ai.chat.model.Generation;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import io.micrometer.observation.annotation.Observed;
+import tools.jackson.databind.ObjectMapper;
 
 /**
  * 멀티턴 에이전트 루프 (ChatClient 기반).
@@ -52,6 +53,7 @@ public class AgentRunner {
      * @param toolCallbacks 도구 콜백 맵 (도구명 → 실행 함수)
      * @return 에이전트 결과
      */
+    @Observed(name = "agent.run", contextualName = "agent-run")
     public AgentResult run(String systemPrompt, String userMessage, int maxTurns,
                            Map<String, Function<Map<String, Object>, String>> toolCallbacks) {
 
@@ -123,7 +125,10 @@ public class AgentRunner {
                             toolCall.id(), toolCall.name(), result));
                 }
 
-                messages.add(new ToolResponseMessage(toolResponses, Map.of()));
+                messages.add(ToolResponseMessage.builder()
+                        .responses(toolResponses)
+                        .metadata(Map.of())
+                        .build());
 
             } catch (Exception e) {
                 log.error("에이전트 루프 오류 (turn {})", tracker.current(), e);

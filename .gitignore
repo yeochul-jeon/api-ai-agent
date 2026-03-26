@@ -2,6 +2,13 @@
 .gradle/
 build/
 !gradle/wrapper/gradle-wrapper.jar
+**/.gradle/
+**/build/
+**/classes/
+**/out/
+!gradle-wrapper.jar
+.gradletasknamecache
+
 
 # IDE
 .idea/
@@ -23,3 +30,8 @@ Thumbs.db
 
 # Logs
 *.log
+
+# package files
+*.jar
+*.war
+*.ear

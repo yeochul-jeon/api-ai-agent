@@ -17,7 +17,8 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
 import com.apiagent.config.ApiAgentProperties;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import io.micrometer.observation.annotation.Observed;
+import tools.jackson.databind.ObjectMapper;
 
 import lombok.RequiredArgsConstructor;
 
@@ -118,6 +119,7 @@ public class DuckDbExecutor {
      * @param query DuckDB SQL 쿼리
      * @return 결과 맵 (success/result 또는 error)
      */
+    @Observed(name = "executor.sql", contextualName = "execute-sql")
     @SuppressWarnings("unchecked")
     public Map<String, Object> executeSql(Object data, String query) {
         var tempFiles = new ArrayList<Path>();
@@ -150,7 +152,7 @@ public class DuckDbExecutor {
             return Map.of("success", false, "error", e.getMessage());
         } finally {
             for (var file : tempFiles) {
-                try { Files.deleteIfExists(file); } catch (IOException ignored) {}
+                try { Files.deleteIfExists(file); } catch (IOException _) {}
             }
         }
     }
@@ -188,7 +190,7 @@ public class DuckDbExecutor {
             return Map.of("rows", data.size(), "schema", "unknown", "hint", e.getMessage());
         } finally {
             if (tempFile != null) {
-                try { Files.deleteIfExists(tempFile); } catch (IOException ignored) {}
+                try { Files.deleteIfExists(tempFile); } catch (IOException _) {}
             }
         }
     }
