@@ -13,8 +13,9 @@ import com.apiagent.client.graphql.GraphqlClient;
 import com.apiagent.client.rest.RestApiClient;
 import com.apiagent.context.RequestContext;
 import com.apiagent.executor.DuckDbExecutor;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 
+import io.micrometer.observation.annotation.Observed;
 import lombok.RequiredArgsConstructor;
 
 /**
@@ -46,6 +47,7 @@ public class RecipeRunner {
      * @param baseUrl REST API base URL
      * @return 실행 결과
      */
+    @Observed(name = "recipe.execute", contextualName = "recipe-execute")
     @SuppressWarnings("unchecked")
     public RunResult execute(Map<String, Object> recipe, Map<String, Object> params,
                              RequestContext ctx, String baseUrl) {

@@ -1,32 +1,23 @@
 package com.apiagent.context;
 
 /**
- * ThreadLocal 기반 요청 컨텍스트 홀더.
- * Virtual Threads 환경에서도 요청별 격리 보장.
+ * ScopedValue 기반 요청 컨텍스트 홀더.
+ * Virtual Threads 환경에서 명시적 스코프 경계를 통한 자동 정리 보장.
  */
 public final class RequestContextHolder {
 
-    private static final ThreadLocal<RequestContext> CONTEXT = new ThreadLocal<>();
+    public static final ScopedValue<RequestContext> SCOPE = ScopedValue.newInstance();
 
     private RequestContextHolder() {}
 
-    public static void set(RequestContext context) {
-        CONTEXT.set(context);
-    }
-
     public static RequestContext get() {
-        return CONTEXT.get();
+        return SCOPE.isBound() ? SCOPE.get() : null;
     }
 
     public static RequestContext require() {
-        var ctx = CONTEXT.get();
-        if (ctx == null) {
+        if (!SCOPE.isBound()) {
             throw new IllegalStateException("RequestContext not set. Missing required headers?");
         }
-        return ctx;
-    }
-
-    public static void clear() {
-        CONTEXT.remove();
+        return SCOPE.get();
     }
 }

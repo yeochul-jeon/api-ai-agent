@@ -9,7 +9,7 @@ import com.apiagent.client.graphql.GraphqlClient;
 import com.apiagent.client.rest.RestApiClient;
 import com.apiagent.context.RequestContext;
 import com.apiagent.executor.DuckDbExecutor;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 
 /**
  * 요청별 도구 콜백 생성 팩토리.

@@ -13,7 +13,8 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.regex.Pattern;
 
-import me.xdrop.fuzzywuzzy.FuzzySearch;
+import org.apache.commons.text.similarity.JaroWinklerSimilarity;
+import org.apache.commons.text.similarity.LevenshteinDistance;
 
 /**
  * 스레드 안전한 LRU 레시피 캐시 (fuzzy 매칭 포함).
@@ -28,6 +29,8 @@ public class RecipeStore {
 
     private static final Pattern WORD_PATTERN = Pattern.compile("[a-z0-9]+");
     private static final Pattern WS_PATTERN = Pattern.compile("\\s+");
+    private static final LevenshteinDistance LEVENSHTEIN = LevenshteinDistance.getDefaultInstance();
+    private static final JaroWinklerSimilarity JARO_WINKLER = new JaroWinklerSimilarity();
 
     public RecipeStore(int maxSize) {
         this.maxSize = Math.max(1, maxSize);
@@ -65,9 +68,10 @@ public class RecipeStore {
         synchronized (lock) {
             var rec = records.get(recipeId);
             if (rec == null) return null;
-            rec.setLastUsedAt(System.currentTimeMillis() / 1000.0);
+            var updated = rec.withLastUsedAt(System.currentTimeMillis() / 1000.0);
+            records.put(recipeId, updated);
             touch(recipeId);
-            return new HashMap<>(rec.recipe());
+            return new HashMap<>(updated.recipe());
         }
     }
 
@@ -154,8 +158,10 @@ public class RecipeStore {
         var qText = String.join(" ", qTokens.stream().sorted().toList());
         var sText = String.join(" ", sTokens.stream().sorted().toList());
 
-        double base = FuzzySearch.tokenSetRatio(qText, sText);
-        double extra = FuzzySearch.weightedRatio(qText, sText);
+        int maxLen = Math.max(qText.length(), sText.length());
+        double base = maxLen == 0 ? 100.0
+                : (1.0 - (double) LEVENSHTEIN.apply(qText, sText) / maxLen) * 100.0;
+        double extra = JARO_WINKLER.apply(qText, sText) * 100.0;
 
         var intersection = new HashSet<>(qTokens);
         intersection.retainAll(sTokens);
@@ -190,12 +196,12 @@ public class RecipeStore {
             // JSON 정규화 시도
             var normalized = text;
             try {
-                var mapper = new com.fasterxml.jackson.databind.ObjectMapper();
+                var mapper = new tools.jackson.databind.ObjectMapper();
                 var parsed = mapper.readTree(text);
                 normalized = mapper.writer()
                         .withDefaultPrettyPrinter()
                         .writeValueAsString(parsed);
-            } catch (Exception ignored) {
+            } catch (Exception _) {
             }
 
             var digest = MessageDigest.getInstance("SHA-256");

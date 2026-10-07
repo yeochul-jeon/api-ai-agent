@@ -11,7 +11,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 
 /**
  * DuckDB를 활용한 CSV 변환 유틸리티.
@@ -72,7 +72,7 @@ public class CsvConverter {
             return "";
         } finally {
             if (tempFile != null) {
-                try { Files.deleteIfExists(tempFile); } catch (IOException ignored) {}
+                try { Files.deleteIfExists(tempFile); } catch (IOException _) {}
             }
         }
     }

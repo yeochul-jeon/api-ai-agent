@@ -12,9 +12,9 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 
 import com.apiagent.config.ApiAgentProperties;
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.dataformat.yaml.YAMLMapper;
 
 import lombok.RequiredArgsConstructor;
 
@@ -27,7 +27,7 @@ public class OpenApiSchemaLoader {
 
     private static final Logger log = LoggerFactory.getLogger(OpenApiSchemaLoader.class);
     private static final ObjectMapper JSON_MAPPER = new ObjectMapper();
-    private static final ObjectMapper YAML_MAPPER = new ObjectMapper(new YAMLFactory());
+    private static final ObjectMapper YAML_MAPPER = YAMLMapper.builder().build();
 
     private final RestClient.Builder restClientBuilder;
     private final ApiAgentProperties properties;
@@ -187,7 +187,7 @@ public class OpenApiSchemaLoader {
         String rawJson;
         try {
             rawJson = JSON_MAPPER.writerWithDefaultPrettyPrinter().writeValueAsString(spec);
-        } catch (JsonProcessingException e) {
+        } catch (JacksonException e) {
             rawJson = "";
         }
 

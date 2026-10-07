@@ -12,7 +12,7 @@ import com.apiagent.context.RequestContext;
 import com.apiagent.context.RequestContextHolder;
 import com.apiagent.util.CsvConverter;
 import com.apiagent.util.ResponseTruncator;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 
 import lombok.RequiredArgsConstructor;
 

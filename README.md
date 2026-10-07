@@ -7,14 +7,15 @@ Agoda의 오픈소스 프로젝트 [api-agent](https://github.com/agoda-com/api-
 
 | 분류 | 기술 |
 |------|------|
-| Runtime | Java 21 (Corretto), Virtual Threads |
-| Framework | Spring Boot 3.4.4, Spring AI 1.0.3 |
+| Runtime | Java 25 (Corretto), Virtual Threads, ScopedValue |
+| Framework | Spring Boot 4.0.3, Spring AI 2.0.0-M3 |
 | MCP | Spring AI MCP Server (WebMVC, Streamable HTTP) |
 | LLM | OpenAI ChatClient (gpt-4o 기본) |
 | SQL 후처리 | DuckDB JDBC 1.2.1 |
-| 퍼지 매칭 | FuzzyWuzzy 1.4.0 |
+| 퍼지 매칭 | Apache Commons Text 1.13.0 |
+| JSON | Jackson 3 (tools.jackson) |
 | Observability | Micrometer + OpenTelemetry |
-| Build | Gradle 8.12 (Kotlin DSL) |
+| Build | Gradle 8.14.1 (Groovy DSL) |
 
 ## 주요 기능
 
@@ -31,7 +32,7 @@ Agoda의 오픈소스 프로젝트 [api-agent](https://github.com/agoda-com/api-
 ```
 src/main/java/com/apiagent/
 ├── config/          # 설정 (Properties, CORS, RestClient, MCP, GlobalExceptionHandler)
-├── context/         # 요청 컨텍스트 (RequestContext record, Filter, ThreadLocal holder)
+├── context/         # 요청 컨텍스트 (RequestContext record, Filter, ScopedValue holder)
 ├── client/
 │   ├── graphql/     # GraphQL 클라이언트 (mutation 차단)
 │   └── rest/        # REST 클라이언트 + OpenAPI 스키마 로더
@@ -45,8 +46,8 @@ src/main/java/com/apiagent/
 
 ## 사전 요구사항
 
-- Java 21+
-- Gradle 8.x (또는 포함된 Gradle Wrapper 사용)
+- Java 25+ (Gradle 실행은 Java 21, 컴파일은 toolchain으로 Java 25 사용)
+- Gradle 8.14+ (또는 포함된 Gradle Wrapper 사용)
 - OpenAI API 키
 
 ## 빌드 & 실행
@@ -59,7 +60,7 @@ src/main/java/com/apiagent/
 ./gradlew bootRun
 
 # JAR 직접 실행
-java --enable-preview -jar build/libs/api-ai-agent-0.1.0.jar
+java -jar build/libs/api-ai-agent-0.1.0.jar
 ```
 
 ### Docker
@@ -94,7 +95,7 @@ docker run -p 3000:3000 \
 | `API_AGENT_MAX_POLLS` | 최대 폴링 횟수 | `20` |
 | `API_AGENT_DEFAULT_POLL_DELAY_MS` | 폴링 지연(ms) | `3000` |
 | `API_AGENT_DEBUG` | 디버그 모드 | `false` |
-| `API_AGENT_CORS_ALLOWED_ORIGINS` | CORS 허용 오리진 | `*` |
+| `API_AGENT_CORS_ALLOWED_ORIGINS` | CORS 허용 오리진 (**운영 환경에서는 반드시 특정 도메인으로 제한**) | `*` |
 | `API_AGENT_ENABLE_RECIPES` | 레시피 캐싱 활성화 | `true` |
 | `API_AGENT_RECIPE_CACHE_SIZE` | 레시피 캐시 크기 | `64` |
 | `API_AGENT_LOG_LEVEL` | 로그 레벨 | `INFO` |
@@ -135,7 +136,7 @@ MCP 요청 시 다음 HTTP 헤더를 통해 대상 API를 지정합니다:
 ./gradlew test
 ```
 
-테스트 파일 11개, 총 52개 테스트 케이스가 포함되어 있습니다.
+테스트 파일 15개, 총 64개 테스트 케이스가 포함되어 있습니다.
 
 ## 라이선스
 

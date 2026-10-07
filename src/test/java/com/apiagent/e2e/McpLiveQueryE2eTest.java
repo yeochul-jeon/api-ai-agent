@@ -5,7 +5,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 import com.apiagent.context.RequestContext;
 import com.apiagent.context.RequestContextHolder;
 import com.apiagent.mcp.McpToolProvider;
-import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -27,14 +26,9 @@ class McpLiveQueryE2eTest {
     @Autowired
     private McpToolProvider mcpToolProvider;
 
-    @AfterEach
-    void cleanup() {
-        RequestContextHolder.clear();
-    }
-
     @Test
-    void 공개_GraphQL_API에_자연어_질의() {
-        // RequestContext 설정 — Countries GraphQL API
+    void 공개_GraphQL_API에_자연어_질의() throws Exception {
+        // RequestContext 설정 — ScopedValue.callWhere 블록 내에서 실행
         var ctx = new RequestContext(
                 "https://countries.trevorblades.com/graphql",
                 "graphql",
@@ -44,12 +38,14 @@ class McpLiveQueryE2eTest {
                 false,  // includeResult
                 null    // pollPaths
         );
-        RequestContextHolder.set(ctx);
 
-        // McpToolProvider를 직접 호출하여 자연어 질의 수행
-        var result = mcpToolProvider._query("한국(South Korea)의 수도는?");
+        var result = new String[1];
+        ScopedValue.where(RequestContextHolder.SCOPE, ctx).call(() -> {
+            result[0] = mcpToolProvider._query("한국(South Korea)의 수도는?");
+            return null;
+        });
 
-        assertThat(result).isNotNull();
-        assertThat(result.toLowerCase()).containsAnyOf("seoul", "서울");
+        assertThat(result[0]).isNotNull();
+        assertThat(result[0].toLowerCase()).containsAnyOf("seoul", "서울");
     }
 }
