@@ -1,7 +1,6 @@
 # API AI Agent
 
 자연어 질의를 GraphQL/REST API 호출로 변환하는 **MCP(Model Context Protocol) 서버**입니다.
-Agoda의 오픈소스 프로젝트 [api-agent](https://github.com/agoda-com/api-agent)에서 영감을 받아, Spring Boot 생태계에 맞게 재설계한 프로젝트입니다.
 
 ## 기술 스택
 
