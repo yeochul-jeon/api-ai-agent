@@ -1,0 +1,167 @@
+{
+  "format": 1,
+  "name": "api-agent",
+  "about": "A Spring Boot MCP server that answers natural-language questions about a GraphQL or REST API. {mcp} exposes the tools, {agent} runs an LLM tool loop against {llm}, and the clients call the {target-api}.",
+  "parts": [
+    {
+      "id": "apiagent",
+      "name": "Application",
+      "about": "The Spring Boot start class; it enables the {config} properties.",
+      "start": "src/main/java/com/apiagent/ApiAgentApplication.java",
+      "paths": [
+        "src/main/java/com/apiagent/ApiAgentApplication.java"
+      ],
+      "uses": [
+        { "to": "config", "why": "enables ApiAgentProperties", "evidence": ["src/main/java/com/apiagent/ApiAgentApplication.java:10"] }
+      ]
+    },
+    {
+      "id": "agent",
+      "name": "Agent",
+      "about": "GraphqlAgentService and RestAgentService load the target schema, build prompts and tools, and run the multi-turn AgentRunner loop.",
+      "start": "src/main/java/com/apiagent/agent/GraphqlAgentService.java",
+      "paths": [
+        "src/main/java/com/apiagent/agent/**"
+      ],
+      "uses": [
+        { "to": "client-graphql", "why": "fetches the schema and runs GraphQL queries", "evidence": ["src/main/java/com/apiagent/agent/GraphqlAgentService.java:64", "src/main/java/com/apiagent/agent/AgentToolFactory.java:53"] },
+        { "to": "client-rest", "why": "loads the OpenAPI schema context and runs REST requests", "evidence": ["src/main/java/com/apiagent/agent/RestAgentService.java:42", "src/main/java/com/apiagent/agent/AgentToolFactory.java:140"] },
+        { "to": "executor", "why": "stores API results as tables and runs SQL on them", "evidence": ["src/main/java/com/apiagent/agent/AgentToolFactory.java:57", "src/main/java/com/apiagent/agent/AgentToolFactory.java:87"] },
+        { "to": "context", "why": "reads target URL and headers of the request", "evidence": ["src/main/java/com/apiagent/agent/GraphqlAgentService.java:15"] },
+        { "to": "config", "why": "reads limits such as max agent turns", "evidence": ["src/main/java/com/apiagent/agent/GraphqlAgentService.java:14"] },
+        { "to": "llm", "why": "sends the prompt through Spring AI ChatClient", "evidence": ["src/main/java/com/apiagent/agent/AgentRunner.java:72"] }
+      ]
+    },
+    {
+      "id": "client-graphql",
+      "name": "GraphQL client",
+      "about": "Read-only GraphQL HTTP client; it blocks mutations.",
+      "start": "src/main/java/com/apiagent/client/graphql/GraphqlClient.java",
+      "paths": [
+        "src/main/java/com/apiagent/client/graphql/**"
+      ],
+      "uses": [
+        { "to": "target-api", "why": "POSTs GraphQL queries", "evidence": ["src/main/java/com/apiagent/client/graphql/GraphqlClient.java:57"] }
+      ]
+    },
+    {
+      "id": "client-rest",
+      "name": "REST client",
+      "about": "REST HTTP client that blocks unsafe methods outside a glob allow list, and the OpenAPI 3.x loader that builds a compact schema context.",
+      "start": "src/main/java/com/apiagent/client/rest/RestApiClient.java",
+      "paths": [
+        "src/main/java/com/apiagent/client/rest/**"
+      ],
+      "uses": [
+        { "to": "target-api", "why": "sends REST requests and fetches the OpenAPI spec", "evidence": ["src/main/java/com/apiagent/client/rest/RestApiClient.java:94", "src/main/java/com/apiagent/client/rest/OpenApiSchemaLoader.java:50"] },
+        { "to": "config", "evidence": ["src/main/java/com/apiagent/client/rest/OpenApiSchemaLoader.java:14"] }
+      ]
+    },
+    {
+      "id": "config",
+      "name": "Config",
+      "about": "ApiAgentProperties (prefix api-agent), MCP server tool registration, RestClient, CORS and the global exception handler. Other parts read ApiAgentProperties too.",
+      "start": "src/main/java/com/apiagent/config/ApiAgentProperties.java",
+      "paths": [
+        "src/main/java/com/apiagent/config/**"
+      ],
+      "uses": [
+        { "to": "mcp", "why": "registers the McpToolProvider @Tool methods as MCP tools", "evidence": ["src/main/java/com/apiagent/config/McpServerConfig.java:9"] }
+      ]
+    },
+    {
+      "id": "context",
+      "name": "Request context",
+      "about": "RequestContextFilter parses the X-Target-URL, X-API-Type and other headers into a RequestContext and binds it to the ScopedValue RequestContextHolder.SCOPE for the request.",
+      "start": "src/main/java/com/apiagent/context/RequestContextFilter.java",
+      "paths": [
+        "src/main/java/com/apiagent/context/**"
+      ]
+    },
+    {
+      "id": "executor",
+      "name": "DuckDB executor",
+      "about": "Turns JSON results into tables and runs SQL on them in an in-memory DuckDB, with a new connection each time.",
+      "start": "src/main/java/com/apiagent/executor/DuckDbExecutor.java",
+      "paths": [
+        "src/main/java/com/apiagent/executor/**"
+      ],
+      "uses": [
+        { "to": "config", "why": "reads max tool response chars", "evidence": ["src/main/java/com/apiagent/executor/DuckDbExecutor.java:72"] }
+      ]
+    },
+    {
+      "id": "mcp",
+      "name": "MCP tools",
+      "about": "McpToolProvider exposes the _query tool and sends the question to the GraphQL or REST agent by API type; ToolNamingService derives tool names from URLs.",
+      "start": "src/main/java/com/apiagent/mcp/McpToolProvider.java",
+      "paths": [
+        "src/main/java/com/apiagent/mcp/**"
+      ],
+      "uses": [
+        { "to": "agent", "why": "runs the GraphQL or REST agent", "evidence": ["src/main/java/com/apiagent/mcp/McpToolProvider.java:39", "src/main/java/com/apiagent/mcp/McpToolProvider.java:40"] },
+        { "to": "context", "why": "takes the current RequestContext", "evidence": ["src/main/java/com/apiagent/mcp/McpToolProvider.java:36"] },
+        { "to": "util", "why": "converts results to CSV or truncates them", "evidence": ["src/main/java/com/apiagent/mcp/McpToolProvider.java:51", "src/main/java/com/apiagent/mcp/McpToolProvider.java:57"] }
+      ]
+    },
+    {
+      "id": "recipe",
+      "name": "Recipes",
+      "about": "Extracts parameterized recipes from successful API calls with an LLM, caches them in an LRU store and runs recipe steps without the agent. No other part in this repository references it.",
+      "start": "src/main/java/com/apiagent/recipe/RecipeRunner.java",
+      "paths": [
+        "src/main/java/com/apiagent/recipe/**"
+      ],
+      "uses": [
+        { "to": "client-graphql", "evidence": ["src/main/java/com/apiagent/recipe/RecipeRunner.java:69"] },
+        { "to": "client-rest", "evidence": ["src/main/java/com/apiagent/recipe/RecipeRunner.java:87"] },
+        { "to": "executor", "evidence": ["src/main/java/com/apiagent/recipe/RecipeRunner.java:111"] },
+        { "to": "context", "evidence": ["src/main/java/com/apiagent/recipe/RecipeRunner.java:14"] },
+        { "to": "llm", "why": "extracts recipes", "evidence": ["src/main/java/com/apiagent/recipe/RecipeExtractor.java:69"] }
+      ]
+    },
+    {
+      "id": "tracing",
+      "name": "Tracing",
+      "about": "OpenTelemetry tracing configuration, active when management.tracing.enabled is true.",
+      "start": "src/main/java/com/apiagent/tracing/TracingConfig.java",
+      "paths": [
+        "src/main/java/com/apiagent/tracing/**"
+      ]
+    },
+    {
+      "id": "util",
+      "name": "Utilities",
+      "about": "CsvConverter (CSV through DuckDB) and ResponseTruncator, which cuts a response to the configured limit in three stages.",
+      "start": "src/main/java/com/apiagent/util/ResponseTruncator.java",
+      "paths": [
+        "src/main/java/com/apiagent/util/**"
+      ],
+      "uses": [
+        { "to": "config", "why": "reads max response chars", "evidence": ["src/main/java/com/apiagent/util/ResponseTruncator.java:32"] }
+      ]
+    }
+  ],
+  "externals": [
+    { "id": "target-api", "name": "Target API", "about": "The GraphQL or REST API of each request. For GraphQL, the X-Target-URL header is the endpoint. For REST, X-Target-URL is the OpenAPI spec URL, and requests go to the X-Base-URL header or else the first servers URL of the spec (else the scheme and host of the spec URL)." },
+    { "id": "llm", "name": "Chat model", "about": "The OpenAI-compatible chat model reached through Spring AI ChatClient, configured under spring.ai.openai (api-key, base-url). api-agent.model-name is defined but no code reads it." }
+  ],
+  "scenarios": [
+    {
+      "id": "graphql-query",
+      "name": "One question about a GraphQL API",
+      "steps": [
+        { "at": "mcp", "does": "_query takes the RequestContext from {context} and, for API type graphql, calls the GraphQL agent." },
+        { "at": "agent", "does": "GraphqlAgentService sends an introspection query through {client-graphql}." },
+        { "at": "client-graphql", "does": "POSTs the query to {target-api} and returns the schema." },
+        { "at": "agent", "does": "Builds a schema context and runs AgentRunner with the GraphQL and SQL tools." },
+        { "at": "llm", "does": "Answers each turn, calling tools when it needs data." },
+        { "at": "agent", "does": "The GraphQL tool runs the query through {client-graphql} and passes the data to {executor}." },
+        { "at": "executor", "does": "Turns the data into tables; the SQL tool runs queries on them." },
+        { "at": "agent", "does": "Returns the result to {mcp}." },
+        { "at": "mcp", "does": "Formats the result with {util}." },
+        { "at": "util", "does": "Converts it to CSV or truncates it to max-response-chars." }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,9 @@
+{
+  "languages": [
+    "java"
+  ],
+  "watch": [
+    "src/main/java/**/*.java",
+    "src/main/java/**/*.kt"
+  ]
+}
