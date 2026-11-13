@@ -1,5 +1,5 @@
 // src/cli.ts
-import { closeSync, lstatSync as lstatSync3, mkdirSync, openSync, readFileSync as readFileSync5, renameSync, rmSync, statSync, writeSync } from "node:fs";
+import { closeSync, lstatSync as lstatSync4, mkdirSync, openSync, readFileSync as readFileSync5, renameSync, rmSync, statSync, writeSync } from "node:fs";
 import { basename, dirname, join as join6, resolve } from "node:path";
 
 // src/config.ts
@@ -291,7 +291,7 @@ function readConfig(repo) {
 }
 
 // src/draft.ts
-import { existsSync as existsSync2, lstatSync, readFileSync as readFileSync3 } from "node:fs";
+import { existsSync as existsSync2, lstatSync as lstatSync2, readFileSync as readFileSync3 } from "node:fs";
 import { join as join3 } from "node:path";
 
 // src/lines.ts
@@ -303,7 +303,7 @@ function lineTotal(bytes) {
 }
 
 // src/measure.ts
-import { readdirSync, readFileSync as readFileSync2 } from "node:fs";
+import { lstatSync, readdirSync, readFileSync as readFileSync2 } from "node:fs";
 import { join as join2 } from "node:path";
 var byCodeUnit = (a, b) => a < b ? -1 : a > b ? 1 : 0;
 function listFiles(repo, prunedDirs) {
@@ -415,6 +415,29 @@ var Rules = class {
     return !this.isWatched(path) && !this.excluded(path);
   }
 };
+function isPlainFile(repo, path) {
+  const segments = path.split("/");
+  try {
+    for (let i = 1; i <= segments.length; i++) {
+      const stat = lstatSync(join2(repo, ...segments.slice(0, i)), { throwIfNoEntry: false });
+      if (stat === void 0 || stat.isSymbolicLink()) return false;
+      if (i === segments.length) return stat.isFile();
+      if (!stat.isDirectory()) return false;
+    }
+  } catch {
+    return false;
+  }
+  return false;
+}
+function unownedTest(config, plan) {
+  const rules = new Rules(config);
+  const patterns = plan.flatMap((part) => part.paths.map((p) => compileGlob(p)));
+  return (path) => {
+    const dirs = path.split("/").slice(0, -1);
+    if (dirs.some((d) => rules.prunedDirs.has(d))) return false;
+    return rules.isWatched(path) && !patterns.some((regex) => regex.test(path));
+  };
+}
 function measure(repo, config, plan) {
   const rules = new Rules(config);
   const files = listFiles(repo, rules.prunedDirs);
@@ -513,7 +536,7 @@ function normalizeId(text) {
 }
 function isRealDir(repo, path) {
   try {
-    return lstatSync(join3(repo, path), { throwIfNoEntry: false })?.isDirectory() ?? false;
+    return lstatSync2(join3(repo, path), { throwIfNoEntry: false })?.isDirectory() ?? false;
   } catch {
     return false;
   }
@@ -1197,7 +1220,7 @@ function readPlanFile(repo, home) {
 }
 
 // src/validate.ts
-import { lstatSync as lstatSync2 } from "node:fs";
+import { lstatSync as lstatSync3 } from "node:fs";
 import { join as join5 } from "node:path";
 var SEVERITY = {
   "bad-shape": "error",
@@ -1214,7 +1237,10 @@ var SEVERITY = {
   "short-scenario": "warning",
   "gap-in-scenario": "warning",
   "unknown-reference": "warning",
-  "no-plan": "warning"
+  "no-plan": "warning",
+  "task-done-missing": "info",
+  "task-todo-has-files": "info",
+  "task-path-unowned": "info"
 };
 function diagnostic(code, at, message) {
   return { code, severity: SEVERITY[code], at, message };
@@ -1222,13 +1248,16 @@ function diagnostic(code, at, message) {
 var ID_FORM = /^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/;
 var REFERENCE = /\{([a-z0-9](?:[a-z0-9-]*[a-z0-9])?)\}/g;
 var KNOWN = {
-  plan: ["format", "name", "about", "parts", "externals", "scenarios", "note"],
+  plan: ["format", "name", "about", "parts", "externals", "scenarios", "tasks", "note"],
   part: ["id", "name", "zone", "about", "start", "paths", "planned", "uses", "note"],
   use: ["to", "why", "evidence", "note"],
   external: ["id", "name", "about", "note"],
   scenario: ["id", "name", "steps", "note"],
-  step: ["at", "does", "note"]
+  step: ["at", "does", "note"],
+  task: ["id", "name", "status", "parts", "makes", "note"]
 };
+var STATUSES = ["todo", "doing", "done"];
+var isStatus = (v) => STATUSES.includes(v);
 var isObj = (v) => typeof v === "object" && v !== null && !Array.isArray(v);
 var validId = (v) => typeof v === "string" && ID_FORM.test(v);
 var arrayOf = (v) => Array.isArray(v) ? v : [];
@@ -1242,6 +1271,7 @@ function preparePlan(raw) {
     excluded: 0,
     repeatedItems: /* @__PURE__ */ new Set(),
     targets: /* @__PURE__ */ new Set(),
+    partIds: /* @__PURE__ */ new Set(),
     usesOf: /* @__PURE__ */ new Map(),
     skipInGaps: /* @__PURE__ */ new Set(),
     used: /* @__PURE__ */ new Set(),
@@ -1252,13 +1282,14 @@ function preparePlan(raw) {
   const externals = arrayOf(raw.externals);
   const scenarios = arrayOf(raw.scenarios);
   const seen = /* @__PURE__ */ new Set();
-  for (const item of [...parts, ...externals, ...scenarios]) {
+  for (const item of [...parts, ...externals, ...scenarios, ...arrayOf(raw.tasks)]) {
     if (!isObj(item) || !validId(item.id)) continue;
     if (seen.has(item.id)) prepared.repeatedItems.add(item);
     else seen.add(item.id);
   }
   const kept = (item) => isObj(item) && validId(item.id) && !prepared.repeatedItems.has(item);
   for (const item of [...parts, ...externals]) if (kept(item)) prepared.targets.add(item.id);
+  for (const part of parts) if (kept(part)) prepared.partIds.add(part.id);
   for (const part of parts) {
     if (kept(part) && goodPaths(part.paths)) prepared.parts.push({ id: part.id, paths: part.paths, planned: part.planned === true });
     else prepared.excluded++;
@@ -1298,6 +1329,28 @@ function preparePlan(raw) {
     }
   }
   return prepared;
+}
+function taskPaths(task) {
+  if (!("makes" in task)) return [];
+  if (!Array.isArray(task.makes)) return null;
+  return [...new Set(task.makes.filter((p) => typeof p === "string" && isPathForm(p)))].sort(byCodeUnit);
+}
+function planTasks(prepared, isFile) {
+  if (!isObj(prepared.raw)) return [];
+  const out = [];
+  for (const task of arrayOf(prepared.raw.tasks)) {
+    if (!isObj(task) || !validId(task.id) || prepared.repeatedItems.has(task)) continue;
+    const makes = taskPaths(task) ?? [];
+    out.push({
+      id: task.id,
+      name: typeof task.name === "string" ? task.name : "",
+      status: isStatus(task.status) ? task.status : null,
+      parts: [...new Set(arrayOf(task.parts).filter((p) => validId(p) && prepared.partIds.has(p)))],
+      makes,
+      missing: makes.filter((p) => !isFile(p))
+    });
+  }
+  return out;
 }
 function diagnosePlan(prepared, facts) {
   const out = [];
@@ -1364,7 +1417,73 @@ function diagnosePlan(prepared, facts) {
   } else {
     arrayOf(raw.scenarios).forEach((scenario, i) => checkScenario(scenario, `scenarios[${i}]`));
   }
+  if ("tasks" in raw && !Array.isArray(raw.tasks)) {
+    emit("bad-shape", "tasks", "`tasks` must be an array");
+  } else {
+    arrayOf(raw.tasks).forEach((task, i) => checkTask(task, `tasks[${i}]`));
+  }
   rest(raw, "", "", KNOWN.plan);
+  function checkTask(task, at) {
+    if (!isObj(task)) {
+      emit("bad-shape", at, "a task must be an object");
+      return;
+    }
+    const repeated = prepared.repeatedItems.has(task);
+    const who = id(task, at, "task", repeated);
+    string(task, "name", `${at}.name`, who, true);
+    const paths = taskPaths(task);
+    const there = (paths ?? []).filter((p) => facts.isFile(p)).length;
+    if (!("status" in task)) missing(`${at}.status`, who, "status");
+    else if (!isStatus(task.status)) {
+      emit("bad-shape", `${at}.status`, `${who}\`status\` must be todo, doing or done`);
+    } else if (!repeated && paths !== null) {
+      if (task.status === "done" && there < paths.length) {
+        emit(
+          "task-done-missing",
+          `${at}.status`,
+          `${who}the status is done and ${there} of ${paths.length} files in \`makes\` are in the repository`
+        );
+      }
+      if (task.status === "todo" && there >= 1) {
+        emit(
+          "task-todo-has-files",
+          `${at}.status`,
+          `${who}the status is todo and ${there} of ${paths.length} files in \`makes\` are already in the repository`
+        );
+      }
+    }
+    if ("parts" in task) {
+      if (!Array.isArray(task.parts)) {
+        emit("bad-shape", `${at}.parts`, `${who}\`parts\` must be an array of part ids`);
+      } else {
+        const seenPart = /* @__PURE__ */ new Set();
+        task.parts.forEach((part, j) => {
+          if (!validId(part)) emit("bad-shape", `${at}.parts[${j}]`, `${who}a part of a task must be an id`);
+          else if (!repeated && !seenPart.has(part)) {
+            seenPart.add(part);
+            if (!prepared.partIds.has(part)) emit("unknown-target", `${at}.parts[${j}]`, `${who}"${part}" is not a part`);
+          }
+        });
+      }
+    }
+    if (paths === null) {
+      emit("bad-shape", `${at}.makes`, `${who}\`makes\` must be an array of paths`);
+    } else {
+      const seenPath = /* @__PURE__ */ new Set();
+      arrayOf(task.makes).forEach((path, j) => {
+        if (typeof path !== "string" || !isPathForm(path)) {
+          emit("bad-shape", `${at}.makes[${j}]`, `${who}a path in \`makes\` must be a path inside the repository`);
+          return;
+        }
+        if (seenPath.has(path)) return;
+        seenPath.add(path);
+        if (!repeated && prepared.excluded === 0 && !facts.isFile(path) && facts.unowned(path)) {
+          emit("task-path-unowned", `${at}.makes[${j}]`, `${who}${path} would be a watched file that no part owns`);
+        }
+      });
+    }
+    rest(task, at, who, KNOWN.task);
+  }
   function checkPart(part, at) {
     if (!isObj(part)) {
       emit("bad-shape", at, "a part must be an object");
@@ -1385,7 +1504,7 @@ function diagnosePlan(prepared, facts) {
       } else if (!repeated) {
         let isFile = false;
         try {
-          isFile = lstatSync2(join5(facts.repo, start), { throwIfNoEntry: false })?.isFile() ?? false;
+          isFile = lstatSync3(join5(facts.repo, start), { throwIfNoEntry: false })?.isFile() ?? false;
         } catch {
           isFile = false;
         }
@@ -1529,6 +1648,7 @@ function diagnosePlan(prepared, facts) {
 // src/summary.ts
 var oneLine = (text) => text.replace(/\r\n|\n|\r/g, " ");
 var shown = (item) => item.name === "" ? item.id : item.name;
+var filesCell = (task) => task.makes.length === 0 ? "" : `${task.makes.length - task.missing.length} of ${task.makes.length}`;
 var plain = (text) => oneLine(text).replace(/[\\`*_[\]<>|~&#]/g, "\\$&");
 function lineStart(text) {
   if (/^[-+=]/.test(text)) return `\\${text}`;
@@ -1570,7 +1690,7 @@ function mermaidText(value) {
   return `${mermaidLines(value).join("\n")}
 `;
 }
-function summaryText(value, m) {
+function summaryText(value, m, tasks) {
   const plan = value;
   const externals = plan.externals ?? [];
   const scenarios = plan.scenarios ?? [];
@@ -1642,6 +1762,24 @@ function summaryText(value, m) {
       }
     }
   }
+  if (tasks.length > 0) {
+    blocks.push("## Tasks");
+    blocks.push(
+      [
+        "| Task | Id | Status | Files | Parts |",
+        "|---|---|---|---|---|",
+        ...tasks.map(
+          (t) => row([
+            plain(shown(t)),
+            t.id,
+            t.status,
+            filesCell(t),
+            t.parts.map((id) => plain(names.get(id))).join(", ")
+          ])
+        )
+      ].join("\n")
+    );
+  }
   blocks.push("## Diagram");
   blocks.push(["```mermaid", ...mermaidLines(plan), "```"].join("\n"));
   return `${blocks.join("\n\n")}
@@ -1681,6 +1819,7 @@ function takeSnapshot(found) {
     orphans: complete ? [...m.orphans].sort(byCodeUnit) : [],
     contested: m.contested.map((c) => ({ path: c.path, parts: [...c.parts].sort(byCodeUnit) })).sort((a, b) => byCodeUnit(a.path, b.path)),
     unwatched: [...m.unwatched].sort(byCodeUnit),
+    tasks: found.tasks.map((t) => ({ id: t.id, status: t.status, makes: t.makes, missing: t.missing })),
     diagnostics: found.diagnostics.map((d) => ({
       at: d.at,
       code: d.code,
@@ -1716,6 +1855,14 @@ function readSnapshot(text) {
     (p) => typeof p.id === "string" && strings(p.paths) && typeof p.planned === "boolean" && typeof p.files === "number" && typeof p.lines === "number"
   ) && each(value.owned, (o) => typeof o.path === "string" && typeof o.part === "string" && typeof o.pattern === "string") && strings(value.orphans) && each(value.contested, (c) => typeof c.path === "string" && strings(c.parts)) && strings(value.unwatched) && each(value.diagnostics, (d) => typeof d.at === "string" && typeof d.code === "string");
   if (!shaped) throw new Error("it does not have the fields of a snapshot");
+  if (!("tasks" in value)) value.tasks = [];
+  const tasksShaped = each(
+    value.tasks,
+    (t) => typeof t.id === "string" && (t.status === null || STATUSES.includes(t.status)) && strings(t.makes) && strings(t.missing)
+  );
+  if (!tasksShaped) throw new Error("its tasks do not have the fields of a snapshot");
+  const ids = value.tasks.map((t) => t.id);
+  if (new Set(ids).size !== ids.length) throw new Error("two of its tasks have the same id");
   return value;
 }
 function list(items) {
@@ -1727,7 +1874,7 @@ function statusLine(head) {
   const errors = head.diagnostics.filter((d) => d.severity === "error").length;
   const counted = [
     [errors, "errors"],
-    [head.diagnostics.length - errors, "warnings"],
+    [head.diagnostics.filter((d) => d.severity === "warning").length, "warnings"],
     [head.orphans.length, "orphan files"],
     [head.contested.length, "contested files"],
     [head.unwatched.length, "unwatched files"]
@@ -1740,6 +1887,34 @@ function statusLine(head) {
   return reasons.length === 0 ? "check: ok" : `check: fails (${reasons.join(", ")})`;
 }
 var sameJson = (a, b) => JSON.stringify(a) === JSON.stringify(b);
+function table(head, rows) {
+  const columns = head.split("|").length - 2;
+  const blocks = [[head, `|${"---|".repeat(columns)}`, ...rows.slice(0, LIST_LIMIT)].join("\n")];
+  if (rows.length > LIST_LIMIT) blocks.push(`And ${rows.length - LIST_LIMIT} more rows.`);
+  return blocks;
+}
+var taskRow = (t, change) => `| ${plain(t.id)} | ${t.status ?? ""} | ${filesCell(t)} |${change === void 0 ? "" : ` ${change} |`}`;
+function taskChanges(head, base) {
+  if (base.plan === "invalid" || head.plan === "invalid") {
+    return ["The plan has errors, so task changes are not shown."];
+  }
+  if (base.tasks.length === 0 && head.tasks.length === 0) return [];
+  const before = new Map(base.tasks.map((t) => [t.id, t]));
+  const after = new Set(head.tasks.map((t) => t.id));
+  const paths = (list2) => [...new Set(list2)].sort(byCodeUnit);
+  const counts = (t) => `${t.makes.length - t.missing.length} of ${t.makes.length}`;
+  const rows = [];
+  for (const t of head.tasks) {
+    const b = before.get(t.id);
+    if (b === void 0) {
+      rows.push(taskRow(t, "new"));
+    } else if (b.status !== t.status || !sameJson(paths(b.makes), paths(t.makes)) || !sameJson(paths(b.missing), paths(t.missing))) {
+      rows.push(`| ${plain(t.id)} | ${b.status ?? ""} \u2192 ${t.status ?? ""} | ${counts(b)} \u2192 ${counts(t)} | changed |`);
+    }
+  }
+  for (const b of base.tasks) if (!after.has(b.id)) rows.push(taskRow(b, "removed"));
+  return rows.length === 0 ? ["No task changed."] : table("| Task | Status | Files | Change |", rows);
+}
 function changes(head, base) {
   if (base.plan === "missing") {
     return { blocks: ["No plan in the base, so there is nothing to compare."], rulesDiffer: false };
@@ -1768,6 +1943,7 @@ function changes(head, base) {
   if (rulesDiffer) {
     blocks.push("The config or part patterns changed, so some changes come from new rules, not new code.");
   }
+  blocks.push(...taskChanges(head, base));
   return { blocks, rulesDiffer };
 }
 function newDirectories(head, base) {
@@ -1806,6 +1982,9 @@ function reportText(head, base) {
   }
   if (head.unwatched.length > 0) {
     blocks.push("### Unwatched files", list(head.unwatched.map(plain)));
+  }
+  if (head.tasks.length > 0) {
+    blocks.push("### Tasks", ...table("| Task | Status | Files |", head.tasks.map((t) => taskRow(t))));
   }
   if (base !== null) {
     const changed = changes(head, base);
@@ -2225,6 +2404,14 @@ rect[data-active] { stroke: var(--cp-active); stroke-width: 3; }
 polyline[data-active] { stroke: var(--cp-active); stroke-width: 3; }
 button, select { background: var(--cp-control-fill); color: var(--cp-control-text); border: 1px solid var(--cp-control-line); border-radius: 4px; font: inherit; padding: 2px 8px; }
 button:disabled { opacity: 0.5; }
+#tasks { margin: 8px 0 0; display: flex; flex-direction: column; align-items: flex-start; gap: 4px; }
+#tasks:empty { display: none; }
+#tasks button { display: flex; align-items: center; gap: 8px; text-align: left; }
+#tasks details button { margin: 4px 0 0; }
+#tasks button[aria-pressed="true"] { border-color: var(--cp-active); box-shadow: inset 0 0 0 1px var(--cp-active); }
+#tasks p { margin: 0; color: var(--cp-text-dim); }
+.bar-line { fill: none; stroke: var(--cp-control-line); stroke-width: 1; }
+.bar-fill { fill: var(--cp-text-dim); stroke: none; }
 #walk { margin: 8px 0 0; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; color: var(--cp-text); }
 #walk:empty { display: none; }
 #legend { margin: 8px 0 0; color: var(--cp-text-dim); }
@@ -2342,36 +2529,7 @@ var VIEWER = `
   });
 
   var scenarios = plan.scenarios || [];
-  if (scenarios.length === 0) return;
-  var walk = document.getElementById("walk");
-  var select = html("select", walk);
-  select.setAttribute("aria-label", "Scenario");
-  var none = html("option", select);
-  none.value = "";
-  none.textContent = "(none)";
-  for (var s = 0; s < scenarios.length; s++) {
-    var option = html("option", select);
-    option.value = String(s);
-    option.textContent = str(scenarios[s].name) || scenarios[s].id;
-  }
-  var prev = html("button", walk);
-  prev.type = "button";
-  prev.textContent = "Previous";
-  prev.title = "Previous step (Left arrow key)";
-  var next = html("button", walk);
-  next.type = "button";
-  next.textContent = "Next";
-  next.title = "Next step (Right arrow key). Esc ends the walk-through.";
-  var stepText = html("span", walk);
-  stepText.setAttribute("data-role", "step");
-  prev.disabled = true;
-  next.disabled = true;
-
-  var current = null;
-  var REF = /\\{([a-z0-9](?:[a-z0-9-]*[a-z0-9])?)\\}/g;
-  function fill(text) {
-    return str(text).replace(REF, function (whole, id) { return id in names ? names[id] : whole; });
-  }
+  var tasks = data.tasks || [];
   function setHash(text) {
     history.replaceState(null, "", text ? "#" + text : location.pathname + location.search);
   }
@@ -2379,6 +2537,127 @@ var VIEWER = `
     for (var id in rects) rects[id].removeAttribute("data-active");
     for (var i = 0; i < edges.length; i++) edges[i].el.removeAttribute("data-active");
     for (var k = 0; k < connectors.length; k++) connectors[k].el.removeAttribute("data-active");
+  }
+
+  // The task pane: one button for each task, the done tasks in a closed
+  // details element after the others. Choosing a task marks its parts; a scenario
+  // walk-through and a chosen task end each other.
+  var pane = document.getElementById("tasks");
+  var written = Object.create(null);
+  var planTasks = plan.tasks || [];
+  for (var w = 0; w < planTasks.length; w++) written[planTasks[w].id] = planTasks[w];
+  var taskRows = Object.create(null);
+  var chosen = null;
+  var current = null;
+  function addTask(task, parent, fold) {
+    var from = written[task.id];
+    var button = html("button", parent);
+    button.type = "button";
+    button.setAttribute("data-task", task.id);
+    html("span", button).textContent = str(from.name) || task.id;
+    html("span", button).textContent = from.status;
+    var makes = from.makes || [];
+    var counted = Object.create(null);
+    var m = 0;
+    for (var i = 0; i < makes.length; i++) {
+      if (!counted[makes[i]]) m++;
+      counted[makes[i]] = true;
+    }
+    if (m > 0) {
+      var n = m - task.missing.length;
+      html("span", button).textContent = n + " of " + m + " files";
+      var bar = make("svg", { width: 66, height: 10, viewBox: "0 0 66 10", "class": "bar", "aria-hidden": "true" }, button);
+      make("rect", { x: 0.5, y: 0.5, width: 65, height: 9, "class": "bar-line" }, bar);
+      make("rect", { x: 1, y: 1, width: Math.round(64 * n / m), height: 8, "class": "bar-fill" }, bar);
+    }
+    taskRows[task.id] = { button: button, fold: fold, marks: task.marks, missing: null };
+    button.addEventListener("click", function () {
+      if (chosen === task.id) endTask();
+      else chooseTask(task.id);
+    });
+  }
+  if (tasks.length > 0) {
+    var doneCount = 0;
+    for (var a = 0; a < tasks.length; a++) {
+      if (written[tasks[a].id].status === "done") doneCount++;
+      else addTask(tasks[a], pane, null);
+    }
+    if (doneCount > 0) {
+      var doneFold = html("details", pane);
+      html("summary", doneFold).textContent = "Done (" + doneCount + ")";
+      for (var b = 0; b < tasks.length; b++) {
+        if (written[tasks[b].id].status === "done") addTask(tasks[b], doneFold, doneFold);
+      }
+    }
+    for (var g = 0; g < tasks.length; g++) {
+      if (tasks[g].missing.length === 0) continue;
+      var box = html("div", pane);
+      box.setAttribute("hidden", "");
+      html("p", box).textContent = "Files this task makes that are not in the repository:";
+      for (var h = 0; h < tasks[g].missing.length; h++) html("p", box).textContent = tasks[g].missing[h];
+      taskRows[tasks[g].id].missing = box;
+    }
+  }
+  // keep: the fragment is left as it is.
+  function endTask(keep) {
+    if (chosen === null) return;
+    var row = taskRows[chosen];
+    row.button.removeAttribute("aria-pressed");
+    if (row.missing) row.missing.setAttribute("hidden", "");
+    chosen = null;
+    clearActive();
+    if (!keep) setHash("");
+  }
+  function chooseTask(id, keep) {
+    if (current !== null) close(true);
+    endTask(true);
+    var row = taskRows[id];
+    chosen = id;
+    row.button.setAttribute("aria-pressed", "true");
+    if (row.fold) row.fold.setAttribute("open", "");
+    for (var i = 0; i < row.marks.length; i++) {
+      if (rects[row.marks[i]]) rects[row.marks[i]].setAttribute("data-active", "");
+    }
+    if (row.missing) row.missing.removeAttribute("hidden");
+    if (!keep) setHash("task=" + id);
+  }
+
+  var select, prev, next, stepText;
+  if (scenarios.length > 0) {
+    var walk = document.getElementById("walk");
+    select = html("select", walk);
+    select.setAttribute("aria-label", "Scenario");
+    var none = html("option", select);
+    none.value = "";
+    none.textContent = "(none)";
+    for (var s = 0; s < scenarios.length; s++) {
+      var option = html("option", select);
+      option.value = String(s);
+      option.textContent = str(scenarios[s].name) || scenarios[s].id;
+    }
+    prev = html("button", walk);
+    prev.type = "button";
+    prev.textContent = "Previous";
+    prev.title = "Previous step (Left arrow key)";
+    next = html("button", walk);
+    next.type = "button";
+    next.textContent = "Next";
+    next.title = "Next step (Right arrow key). Esc ends the walk-through.";
+    stepText = html("span", walk);
+    stepText.setAttribute("data-role", "step");
+    prev.disabled = true;
+    next.disabled = true;
+    select.addEventListener("change", function () {
+      if (select.value === "") close();
+      else open(Number(select.value), 0);
+    });
+    prev.addEventListener("click", function () { move(-1); });
+    next.addEventListener("click", function () { move(1); });
+  }
+
+  var REF = /\\{([a-z0-9](?:[a-z0-9-]*[a-z0-9])?)\\}/g;
+  function fill(text) {
+    return str(text).replace(REF, function (whole, id) { return id in names ? names[id] : whole; });
   }
   // keep: opened from the fragment, which is then left as it is.
   function show(keep) {
@@ -2416,19 +2695,21 @@ var VIEWER = `
     if (!keep) setHash("scenario=" + scenario.id + "&step=" + (k + 1));
   }
   function open(index, step, fromHash) {
+    endTask(true);
     current = { index: index, step: step };
     select.value = String(index);
     show(fromHash);
     if (!next.disabled) next.focus();
   }
-  function close() {
+  // keep: the fragment is left as it is.
+  function close(keep) {
     current = null;
     clearActive();
     select.value = "";
     stepText.textContent = "";
     prev.disabled = true;
     next.disabled = true;
-    setHash("");
+    if (!keep) setHash("");
   }
   function move(by) {
     if (current === null) return;
@@ -2438,14 +2719,12 @@ var VIEWER = `
     current.step = k;
     show();
   }
-  select.addEventListener("change", function () {
-    if (select.value === "") close();
-    else open(Number(select.value), 0);
-  });
-  prev.addEventListener("click", function () { move(-1); });
-  next.addEventListener("click", function () { move(1); });
   document.addEventListener("keydown", function (event) {
-    if (current === null || document.activeElement === select) return;
+    if (current === null) {
+      if (chosen !== null && event.key === "Escape" && !event.altKey && !event.ctrlKey && !event.metaKey) endTask();
+      return;
+    }
+    if (document.activeElement === select) return;
     if (event.altKey || event.ctrlKey || event.metaKey) return;
     if (event.key === "ArrowLeft") { event.preventDefault(); move(-1); }
     else if (event.key === "ArrowRight") { event.preventDefault(); move(1); }
@@ -2453,12 +2732,16 @@ var VIEWER = `
   });
 
   // Opens what the fragment names: on load, and when the fragment changes
-  // later (replaceState above does not fire hashchange). An unknown id is
-  // ignored; no fragment at all ends the walk-through.
+  // later (replaceState above does not fire hashchange). A scenario key is
+  // read first and the task key is then not looked at. An unknown id is
+  // ignored; no fragment at all ends the walk-through and the chosen task.
   function fromHash(onLoad) {
     var text = location.hash.replace(/^#/, "");
     if (text === "") {
-      if (!onLoad && current !== null) close();
+      if (!onLoad) {
+        if (current !== null) close();
+        endTask();
+      }
       return;
     }
     var wanted = Object.create(null);
@@ -2469,13 +2752,17 @@ var VIEWER = `
         try { wanted[decodeURIComponent(pieces[q].slice(0, eq))] = decodeURIComponent(pieces[q].slice(eq + 1)); } catch (err) {}
       }
     }
-    for (var w = 0; w < scenarios.length; w++) {
-      if (scenarios[w].id !== wanted.scenario) continue;
-      var n = (scenarios[w].steps || []).length;
-      var k = /^[0-9]+$/.test(wanted.step || "") ? parseInt(wanted.step, 10) : 0;
-      open(w, k >= 1 && k <= n ? k - 1 : 0, true);
+    if ("scenario" in wanted) {
+      for (var w = 0; w < scenarios.length; w++) {
+        if (scenarios[w].id !== wanted.scenario) continue;
+        var n = (scenarios[w].steps || []).length;
+        var k = /^[0-9]+$/.test(wanted.step || "") ? parseInt(wanted.step, 10) : 0;
+        open(w, k >= 1 && k <= n ? k - 1 : 0, true);
+        return;
+      }
       return;
     }
+    if ("task" in wanted && taskRows[wanted.task]) chooseTask(wanted.task, true);
   }
   window.addEventListener("hashchange", function () { fromHash(false); });
   fromHash(true);
@@ -2495,6 +2782,7 @@ var FRAME = {
 <main>
 <div id="tools"></div>
 <svg id="plane" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="parts of the repository"></svg>
+<div id="tasks"></div>
 <div id="walk"></div>
 <div id="legend"></div>
 </main>
@@ -2522,7 +2810,8 @@ Commands:
   draft   Read the repository and print a first plan.json and codeplan.json
           as one JSON document on standard output. Writes nothing.
   summary Print the plan as Markdown on standard output: the parts with
-          their counts, uses, externals, scenarios and a mermaid diagram.
+          their counts, uses, externals, scenarios, tasks and a mermaid
+          diagram.
           Writes nothing and does not read the viewer page.
   snapshot Print what check finds as JSON on standard output: the config
           used, each part's counts, which pattern owns each file, the
@@ -2567,12 +2856,12 @@ var OPTIONS = ["--repo", "--max-parts", "--language", "--root", "--mermaid", "--
 function pagePlace(repo, page) {
   const segments = page.split("/");
   for (let i = 1; i < segments.length; i++) {
-    const dir = lstatSync3(join6(repo, ...segments.slice(0, i)), { throwIfNoEntry: false });
+    const dir = lstatSync4(join6(repo, ...segments.slice(0, i)), { throwIfNoEntry: false });
     if (dir === void 0) break;
     if (dir.isSymbolicLink()) return { kind: "other", what: "a path through a symbolic link" };
     if (!dir.isDirectory()) return { kind: "other", what: "a path that passes through a file" };
   }
-  const stat = lstatSync3(join6(repo, page), { throwIfNoEntry: false });
+  const stat = lstatSync4(join6(repo, page), { throwIfNoEntry: false });
   if (stat === void 0) return { kind: "absent" };
   if (stat.isSymbolicLink()) return { kind: "other", what: "a symbolic link" };
   if (!stat.isFile()) return { kind: "other", what: stat.isDirectory() ? "a directory" : "not a regular file" };
@@ -2609,12 +2898,16 @@ function check(repo, page = "compare") {
     const plan = planPath(config.home);
     const measurement2 = measure(repo, config, []);
     const diagnostics2 = [diagnostic("no-plan", "plan", `${plan} not found, so every watched file is an orphan`)];
-    return { kind: "measured", config, plan: null, measured: [], measurement: measurement2, diagnostics: diagnostics2, excluded: 0, page: notCompared };
+    return { kind: "measured", config, plan: null, measured: [], measurement: measurement2, diagnostics: diagnostics2, tasks: [], excluded: 0, page: notCompared };
   }
   const prepared = preparePlan(file.value);
   const measurement = measure(repo, config, prepared.parts);
+  const isFile = (path) => isPlainFile(repo, path);
+  const tasks = planTasks(prepared, isFile);
   const diagnostics = diagnosePlan(prepared, {
     repo,
+    isFile,
+    unowned: unownedTest(config, prepared.parts),
     files: new Map(measurement.parts.map((p) => [p.id, p.files])),
     owners: measurement.owners
   });
@@ -2625,17 +2918,18 @@ function check(repo, page = "compare") {
     measured: prepared.parts,
     measurement,
     diagnostics,
+    tasks,
     excluded: prepared.excluded
   };
   if (page === "skip" || place.kind === "other" || diagnostics.some((d) => d.severity === "error") || measurement.contested.length > 0) {
     return { ...result2, page: notCompared };
   }
-  const bytes = Buffer.from(pageFor(file.value, measurement), "utf8");
+  const bytes = Buffer.from(pageFor(file.value, measurement, tasks), "utf8");
   const current = place.kind === "page" && place.bytes.equals(bytes);
   const state = place.kind === "absent" ? "missing" : current ? "ok" : "outdated";
   return { ...result2, page: { path: config.page, bytes, current, state } };
 }
-function pageFor(plan, m) {
+function pageFor(plan, m, tasks) {
   const raw = plan;
   const parts = m.parts.map((p) => ({ id: p.id, files: p.files, lines: p.lines }));
   const externals = raw.externals ?? [];
@@ -2681,6 +2975,12 @@ function pageFor(plan, m) {
     },
     orphans: m.orphans,
     unwatched: m.unwatched.length,
+    // marks: the parts the task names and the parts that hold its files, in
+    // plan order.
+    tasks: tasks.map((task) => {
+      const marked = /* @__PURE__ */ new Set([...task.parts, ...task.makes.map((path) => m.owners.get(path))]);
+      return { id: task.id, marks: parts.map((p) => p.id).filter((id) => marked.has(id)), missing: task.missing };
+    }),
     layout
   });
 }
@@ -2744,9 +3044,9 @@ function update(repo) {
 }
 var FIXES = {
   "bad-shape": "give the field at that place the type and form of the plan format, or remove an unknown key",
-  "repeated-id": "give each part, external and scenario an id of its own",
+  "repeated-id": "give each part, external, scenario and task an id of its own",
   "no-paths": "give the part at least one pattern in paths",
-  "unknown-target": "name an existing part or external, or add it",
+  "unknown-target": "name an existing part or external, or add it; the parts of a task name parts only",
   "empty-part": "correct the part's paths so they match files, or remove the part",
   "planned-has-files": "remove planned from the part now that it has code; if the files are not its code, correct the part's paths",
   "start-missing": "point start at a file in the repository",
@@ -2756,7 +3056,10 @@ var FIXES = {
   "unused-external": "name the external in a use or a step, or remove it",
   "short-scenario": "give the scenario two steps or more",
   "gap-in-scenario": "add a use between the two steps' parts, or a step between them",
-  "unknown-reference": "write the id of an existing part or external in the braces"
+  "unknown-reference": "write the id of an existing part or external in the braces",
+  "task-done-missing": "make the files that are not there, take them out of makes, or set the status the task has now",
+  "task-todo-has-files": "nothing has to change; if the files are not what this task makes, correct makes",
+  "task-path-unowned": "add a pattern for the path to a part's paths, or correct the path in makes"
 };
 var fixFor = (code, plan) => code === "no-plan" ? `create ${plan} and give each part the paths it owns` : FIXES[code];
 function findingLines(diagnostics, plan) {
@@ -2778,6 +3081,7 @@ function snapshotOf(repo) {
     measured: result2.measured,
     measurement: result2.measurement,
     diagnostics: result2.diagnostics,
+    tasks: result2.tasks,
     excluded: result2.excluded,
     pageState: result2.page.state,
     fix: (code) => fixFor(code, plan)
@@ -2814,7 +3118,7 @@ function summary(repo, mermaid) {
   if (result2.plan === null || result2.diagnostics.some((d) => d.severity === "error")) {
     return { code: 2, stdout: "", stderr };
   }
-  const stdout = mermaid ? mermaidText(result2.plan) : summaryText(result2.plan, result2.measurement);
+  const stdout = mermaid ? mermaidText(result2.plan) : summaryText(result2.plan, result2.measurement, result2.tasks);
   return { code: 0, stdout, stderr };
 }
 function listSection(title, fix, items) {
@@ -2867,9 +3171,9 @@ function checkReport(result2) {
   }
   stderr += findingLines(diagnostics, plan);
   const errors = diagnostics.filter((d) => d.severity === "error").length;
-  const warnings = diagnostics.length - errors;
+  const warnings = diagnostics.filter((d) => d.severity === "warning").length;
   const problems = orphans.length + m.contested.length + m.unwatched.length;
-  if (problems === 0 && diagnostics.length === 0 && excluded === 0 && !outdated) {
+  if (problems === 0 && errors === 0 && warnings === 0 && excluded === 0 && !outdated) {
     stdout += "check: ok\n";
     return { code: 0, stdout, stderr };
   }
