@@ -1,0 +1,25 @@
+name: codeplan
+on:
+  pull_request:
+  push:
+    branches: [main]
+jobs:
+  codeplan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+      - name: Measure the base
+        if: github.event_name == 'pull_request'
+        run: |
+          git worktree add "$RUNNER_TEMP/base" "${{ github.event.pull_request.base.sha }}"
+          node docs/codeplan/codeplan.mjs snapshot --repo "$RUNNER_TEMP/base" > "$RUNNER_TEMP/base.json"
+      - name: Report
+        if: github.event_name == 'pull_request'
+        run: node docs/codeplan/codeplan.mjs report --base "$RUNNER_TEMP/base.json" >> "$GITHUB_STEP_SUMMARY"
+      - name: Check
+        run: node docs/codeplan/codeplan.mjs check

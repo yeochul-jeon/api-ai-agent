@@ -1,0 +1,405 @@
+<!doctype html><!-- codeplan page -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>codeplan</title>
+<style>
+:root { color-scheme: light dark; --cp-bg: #fbfaf7; --cp-text: #1d2433; --cp-text-dim: #4f5869; --cp-part-fill: #ffffff; --cp-part-line: #5d6b82; --cp-ext-fill: #eef3f8; --cp-ext-line: #5f6f86; --cp-zone-fill: #efece4; --cp-zone-line: #857c66; --cp-zone-title: #4a4436; --cp-edge: #5b6170; --cp-connector: #8a6a1f; --cp-active: #b5400f; --cp-control-fill: #ffffff; --cp-control-line: #6b7486; --cp-control-text: #1d2433; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme]) { --cp-bg: #14171d; --cp-text: #e7e9ee; --cp-text-dim: #a9b0bd; --cp-part-fill: #1e232c; --cp-part-line: #8d9ab0; --cp-ext-fill: #1b2530; --cp-ext-line: #8fa3ba; --cp-zone-fill: #22211d; --cp-zone-line: #9a9079; --cp-zone-title: #d8cfb8; --cp-edge: #9aa1ae; --cp-connector: #d0a650; --cp-active: #f08a4b; --cp-control-fill: #1e232c; --cp-control-line: #8d96a6; --cp-control-text: #e7e9ee; } }
+:root[data-theme="light"] { color-scheme: light; --cp-bg: #fbfaf7; --cp-text: #1d2433; --cp-text-dim: #4f5869; --cp-part-fill: #ffffff; --cp-part-line: #5d6b82; --cp-ext-fill: #eef3f8; --cp-ext-line: #5f6f86; --cp-zone-fill: #efece4; --cp-zone-line: #857c66; --cp-zone-title: #4a4436; --cp-edge: #5b6170; --cp-connector: #8a6a1f; --cp-active: #b5400f; --cp-control-fill: #ffffff; --cp-control-line: #6b7486; --cp-control-text: #1d2433; }
+:root[data-theme="dark"] { color-scheme: dark; --cp-bg: #14171d; --cp-text: #e7e9ee; --cp-text-dim: #a9b0bd; --cp-part-fill: #1e232c; --cp-part-line: #8d9ab0; --cp-ext-fill: #1b2530; --cp-ext-line: #8fa3ba; --cp-zone-fill: #22211d; --cp-zone-line: #9a9079; --cp-zone-title: #d8cfb8; --cp-edge: #9aa1ae; --cp-connector: #d0a650; --cp-active: #f08a4b; --cp-control-fill: #1e232c; --cp-control-line: #8d96a6; --cp-control-text: #e7e9ee; }
+html, body { margin: 0; background: var(--cp-bg); color: var(--cp-text); font: 13px/1.4 system-ui, sans-serif; }
+main { padding: 16px; }
+#tools { display: flex; justify-content: flex-end; margin: 0 0 8px; }
+#plane { display: block; width: 100%; height: auto; max-height: 80vh; background: transparent; }
+.zone { fill: var(--cp-zone-fill); stroke: var(--cp-zone-line); stroke-width: 1; }
+.zone-title { fill: var(--cp-zone-title); font-size: 12px; font-weight: 600; }
+.part { fill: var(--cp-part-fill); stroke: var(--cp-part-line); stroke-width: 1; }
+.part[data-planned] { stroke-dasharray: 6 3; }
+.external { fill: var(--cp-ext-fill); stroke: var(--cp-ext-line); stroke-width: 1; stroke-dasharray: 4 2; }
+.label { fill: var(--cp-text); font-size: 12px; }
+.label .name { font-weight: 600; }
+.edge { fill: none; stroke: var(--cp-edge); stroke-width: 1.25; }
+.connector { fill: none; stroke: var(--cp-connector); stroke-width: 1.25; stroke-dasharray: 5 4; }
+.arrow { fill: var(--cp-edge); stroke: none; }
+rect[data-active] { stroke: var(--cp-active); stroke-width: 3; }
+polyline[data-active] { stroke: var(--cp-active); stroke-width: 3; }
+button, select { background: var(--cp-control-fill); color: var(--cp-control-text); border: 1px solid var(--cp-control-line); border-radius: 4px; font: inherit; padding: 2px 8px; }
+button:disabled { opacity: 0.5; }
+#tasks { margin: 8px 0 0; display: flex; flex-direction: column; align-items: flex-start; gap: 4px; }
+#tasks:empty { display: none; }
+#tasks button { display: flex; align-items: center; gap: 8px; text-align: left; }
+#tasks details button { margin: 4px 0 0; }
+#tasks button[aria-pressed="true"] { border-color: var(--cp-active); box-shadow: inset 0 0 0 1px var(--cp-active); }
+#tasks p { margin: 0; color: var(--cp-text-dim); }
+.bar-line { fill: none; stroke: var(--cp-control-line); stroke-width: 1; }
+.bar-fill { fill: var(--cp-text-dim); stroke: none; }
+#walk { margin: 8px 0 0; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; color: var(--cp-text); }
+#walk:empty { display: none; }
+#legend { margin: 8px 0 0; color: var(--cp-text-dim); }
+#legend p { margin: 0; }
+</style>
+<script>try { var t = localStorage.getItem("codeplan-theme"); if (t === "light" || t === "dark") document.documentElement.setAttribute("data-theme", t); } catch (e) {}</script>
+</head>
+<body>
+<main>
+<div id="tools"></div>
+<svg id="plane" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="parts of the repository"></svg>
+<div id="tasks"></div>
+<div id="walk"></div>
+<div id="legend"></div>
+</main>
+<script type="application/json" id="codeplan-data">{"format":2,"plan":{"format":1,"name":"api-agent","about":"A Spring Boot MCP server that answers natural-language questions about a GraphQL or REST API. {mcp} exposes the tools, {agent} runs an LLM tool loop against {llm}, and the clients call the {target-api}.","parts":[{"id":"apiagent","name":"Application","about":"The Spring Boot start class; it enables the {config} properties.","start":"src/main/java/com/apiagent/ApiAgentApplication.java","paths":["src/main/java/com/apiagent/ApiAgentApplication.java"],"uses":[{"to":"config","why":"enables ApiAgentProperties","evidence":["src/main/java/com/apiagent/ApiAgentApplication.java:10"]}]},{"id":"agent","name":"Agent","about":"GraphqlAgentService and RestAgentService load the target schema, build prompts and tools, and run the multi-turn AgentRunner loop.","start":"src/main/java/com/apiagent/agent/GraphqlAgentService.java","paths":["src/main/java/com/apiagent/agent/**"],"uses":[{"to":"client-graphql","why":"fetches the schema and runs GraphQL queries","evidence":["src/main/java/com/apiagent/agent/GraphqlAgentService.java:64","src/main/java/com/apiagent/agent/AgentToolFactory.java:53"]},{"to":"client-rest","why":"loads the OpenAPI schema context and runs REST requests","evidence":["src/main/java/com/apiagent/agent/RestAgentService.java:42","src/main/java/com/apiagent/agent/AgentToolFactory.java:140"]},{"to":"executor","why":"stores API results as tables and runs SQL on them","evidence":["src/main/java/com/apiagent/agent/AgentToolFactory.java:57","src/main/java/com/apiagent/agent/AgentToolFactory.java:87"]},{"to":"context","why":"reads target URL and headers of the request","evidence":["src/main/java/com/apiagent/agent/GraphqlAgentService.java:15"]},{"to":"config","why":"reads limits such as max agent turns","evidence":["src/main/java/com/apiagent/agent/GraphqlAgentService.java:14"]},{"to":"llm","why":"sends the prompt through Spring AI ChatClient","evidence":["src/main/java/com/apiagent/agent/AgentRunner.java:72"]}]},{"id":"client-graphql","name":"GraphQL client","about":"Read-only GraphQL HTTP client; it blocks mutations.","start":"src/main/java/com/apiagent/client/graphql/GraphqlClient.java","paths":["src/main/java/com/apiagent/client/graphql/**"],"uses":[{"to":"target-api","why":"POSTs GraphQL queries","evidence":["src/main/java/com/apiagent/client/graphql/GraphqlClient.java:57"]}]},{"id":"client-rest","name":"REST client","about":"REST HTTP client that blocks unsafe methods outside a glob allow list, and the OpenAPI 3.x loader that builds a compact schema context.","start":"src/main/java/com/apiagent/client/rest/RestApiClient.java","paths":["src/main/java/com/apiagent/client/rest/**"],"uses":[{"to":"target-api","why":"sends REST requests and fetches the OpenAPI spec","evidence":["src/main/java/com/apiagent/client/rest/RestApiClient.java:94","src/main/java/com/apiagent/client/rest/OpenApiSchemaLoader.java:50"]},{"to":"config","evidence":["src/main/java/com/apiagent/client/rest/OpenApiSchemaLoader.java:14"]}]},{"id":"config","name":"Config","about":"ApiAgentProperties (prefix api-agent), MCP server tool registration, RestClient, CORS and the global exception handler. Other parts read ApiAgentProperties too.","start":"src/main/java/com/apiagent/config/ApiAgentProperties.java","paths":["src/main/java/com/apiagent/config/**"],"uses":[{"to":"mcp","why":"registers the McpToolProvider @Tool methods as MCP tools","evidence":["src/main/java/com/apiagent/config/McpServerConfig.java:9"]}]},{"id":"context","name":"Request context","about":"RequestContextFilter parses the X-Target-URL, X-API-Type and other headers into a RequestContext and binds it to the ScopedValue RequestContextHolder.SCOPE for the request.","start":"src/main/java/com/apiagent/context/RequestContextFilter.java","paths":["src/main/java/com/apiagent/context/**"]},{"id":"executor","name":"DuckDB executor","about":"Turns JSON results into tables and runs SQL on them in an in-memory DuckDB, with a new connection each time.","start":"src/main/java/com/apiagent/executor/DuckDbExecutor.java","paths":["src/main/java/com/apiagent/executor/**"],"uses":[{"to":"config","why":"reads max tool response chars","evidence":["src/main/java/com/apiagent/executor/DuckDbExecutor.java:72"]}]},{"id":"mcp","name":"MCP tools","about":"McpToolProvider exposes the _query tool and sends the question to the GraphQL or REST agent by API type; ToolNamingService derives tool names from URLs.","start":"src/main/java/com/apiagent/mcp/McpToolProvider.java","paths":["src/main/java/com/apiagent/mcp/**"],"uses":[{"to":"agent","why":"runs the GraphQL or REST agent","evidence":["src/main/java/com/apiagent/mcp/McpToolProvider.java:39","src/main/java/com/apiagent/mcp/McpToolProvider.java:40"]},{"to":"context","why":"takes the current RequestContext","evidence":["src/main/java/com/apiagent/mcp/McpToolProvider.java:36"]},{"to":"util","why":"converts results to CSV or truncates them","evidence":["src/main/java/com/apiagent/mcp/McpToolProvider.java:51","src/main/java/com/apiagent/mcp/McpToolProvider.java:57"]}]},{"id":"recipe","name":"Recipes","about":"Extracts parameterized recipes from successful API calls with an LLM, caches them in an LRU store and runs recipe steps without the agent. No other part in this repository references it.","start":"src/main/java/com/apiagent/recipe/RecipeRunner.java","paths":["src/main/java/com/apiagent/recipe/**"],"uses":[{"to":"client-graphql","evidence":["src/main/java/com/apiagent/recipe/RecipeRunner.java:69"]},{"to":"client-rest","evidence":["src/main/java/com/apiagent/recipe/RecipeRunner.java:87"]},{"to":"executor","evidence":["src/main/java/com/apiagent/recipe/RecipeRunner.java:111"]},{"to":"context","evidence":["src/main/java/com/apiagent/recipe/RecipeRunner.java:14"]},{"to":"llm","why":"extracts recipes","evidence":["src/main/java/com/apiagent/recipe/RecipeExtractor.java:69"]}]},{"id":"tracing","name":"Tracing","about":"OpenTelemetry tracing configuration, active when management.tracing.enabled is true.","start":"src/main/java/com/apiagent/tracing/TracingConfig.java","paths":["src/main/java/com/apiagent/tracing/**"]},{"id":"util","name":"Utilities","about":"CsvConverter (CSV through DuckDB) and ResponseTruncator, which cuts a response to the configured limit in three stages.","start":"src/main/java/com/apiagent/util/ResponseTruncator.java","paths":["src/main/java/com/apiagent/util/**"],"uses":[{"to":"config","why":"reads max response chars","evidence":["src/main/java/com/apiagent/util/ResponseTruncator.java:32"]}]}],"externals":[{"id":"target-api","name":"Target API","about":"The GraphQL or REST API of each request. For GraphQL, the X-Target-URL header is the endpoint. For REST, X-Target-URL is the OpenAPI spec URL, and requests go to the X-Base-URL header or else the first servers URL of the spec (else the scheme and host of the spec URL)."},{"id":"llm","name":"Chat model","about":"The OpenAI-compatible chat model reached through Spring AI ChatClient, configured under spring.ai.openai (api-key, base-url). api-agent.model-name is defined but no code reads it."}],"scenarios":[{"id":"graphql-query","name":"One question about a GraphQL API","steps":[{"at":"mcp","does":"_query takes the RequestContext from {context} and, for API type graphql, calls the GraphQL agent."},{"at":"agent","does":"GraphqlAgentService sends an introspection query through {client-graphql}."},{"at":"client-graphql","does":"POSTs the query to {target-api} and returns the schema."},{"at":"agent","does":"Builds a schema context and runs AgentRunner with the GraphQL and SQL tools."},{"at":"llm","does":"Answers each turn, calling tools when it needs data."},{"at":"agent","does":"The GraphQL tool runs the query through {client-graphql} and passes the data to {executor}."},{"at":"executor","does":"Turns the data into tables; the SQL tool runs queries on them."},{"at":"agent","does":"Returns the result to {mcp}."},{"at":"mcp","does":"Formats the result with {util}."},{"at":"util","does":"Converts it to CSV or truncates it to max-response-chars."}]}]},"measure":{"parts":[{"id":"apiagent","files":1,"lines":16},{"id":"agent","files":8,"lines":1123},{"id":"client-graphql","files":1,"lines":86},{"id":"client-rest","files":2,"lines":513},{"id":"config","files":5,"lines":180},{"id":"context","files":3,"lines":135},{"id":"executor","files":1,"lines":225},{"id":"mcp","files":2,"lines":159},{"id":"recipe","files":6,"lines":633},{"id":"tracing","files":1,"lines":15},{"id":"util","files":2,"lines":167}],"files":32,"lines":3252},"orphans":[],"unwatched":0,"tasks":[],"layout":{"width":313,"height":532,"zones":[],"parts":[{"id":"apiagent","x":8,"y":8,"w":89,"h":56,"label":{"x":8,"y":8,"w":89,"h":56}},{"id":"agent","x":105,"y":8,"w":116,"h":116,"label":{"x":105,"y":8,"w":82,"h":56}},{"id":"client-graphql","x":8,"y":132,"w":110,"h":56,"label":{"x":8,"y":132,"w":110,"h":56}},{"id":"client-rest","x":126,"y":132,"w":96,"h":95,"label":{"x":126,"y":132,"w":89,"h":56}},{"id":"config","x":230,"y":132,"w":75,"h":72,"label":{"x":230,"y":132,"w":75,"h":56}},{"id":"context","x":8,"y":235,"w":117,"h":56,"label":{"x":8,"y":235,"w":117,"h":56}},{"id":"executor","x":133,"y":235,"w":117,"h":56,"label":{"x":133,"y":235,"w":117,"h":56}},{"id":"mcp","x":8,"y":299,"w":75,"h":68,"label":{"x":8,"y":299,"w":75,"h":56}},{"id":"recipe","x":91,"y":299,"w":101,"h":100,"label":{"x":91,"y":299,"w":75,"h":56}},{"id":"tracing","x":200,"y":299,"w":68,"h":56,"label":{"x":200,"y":299,"w":68,"h":56}},{"id":"util","x":8,"y":407,"w":75,"h":69,"label":{"x":8,"y":407,"w":75,"h":56}}],"externals":[{"id":"target-api","x":8,"y":484,"w":82,"h":40,"label":{"x":8,"y":484,"w":82,"h":40}},{"id":"llm","x":98,"y":484,"w":82,"h":40,"label":{"x":98,"y":484,"w":82,"h":40}}],"edges":[{"from":"apiagent","to":"config","points":[[97,36],[101,36],[101,128],[226,128],[226,168],[230,168]]},{"from":"agent","to":"client-graphql","points":[[105,66],[101,66],[101,128],[122,128],[122,160],[118,160]]},{"from":"agent","to":"client-rest","points":[[163,124],[163,128],[226,128],[226,179],[222,179]]},{"from":"agent","to":"executor","points":[[163,124],[163,128],[226,128],[226,231],[254,231],[254,263],[250,263]]},{"from":"agent","to":"context","points":[[105,66],[101,66],[101,128],[122,128],[122,231],[129,231],[129,263],[125,263]]},{"from":"agent","to":"config","points":[[163,124],[163,128],[226,128],[226,168],[230,168]]},{"from":"agent","to":"llm","points":[[163,124],[163,128],[226,128],[226,231],[272,231],[272,480],[184,480],[184,504],[180,504]]},{"from":"client-graphql","to":"target-api","points":[[8,160],[4,160],[4,504],[8,504]]},{"from":"client-rest","to":"target-api","points":[[174,227],[174,231],[4,231],[4,504],[8,504]]},{"from":"client-rest","to":"config","points":[[222,179],[226,179],[226,168],[230,168]]},{"from":"config","to":"mcp","points":[[230,168],[226,168],[226,231],[129,231],[129,295],[87,295],[87,333],[83,333]]},{"from":"executor","to":"config","points":[[250,263],[254,263],[254,208],[226,208],[226,168],[230,168]]},{"from":"mcp","to":"agent","points":[[8,333],[4,333],[4,128],[163,128],[163,124]]},{"from":"mcp","to":"context","points":[[8,333],[4,333],[4,263],[8,263]]},{"from":"mcp","to":"util","points":[[8,333],[4,333],[4,441],[8,441]]},{"from":"recipe","to":"client-graphql","points":[[141,299],[141,295],[4,295],[4,160],[8,160]]},{"from":"recipe","to":"client-rest","points":[[91,349],[87,349],[87,295],[129,295],[129,231],[174,231],[174,227]]},{"from":"recipe","to":"executor","points":[[141,299],[141,295],[254,295],[254,263],[250,263]]},{"from":"recipe","to":"context","points":[[91,349],[87,349],[87,295],[129,295],[129,263],[125,263]]},{"from":"recipe","to":"llm","points":[[91,349],[87,349],[87,480],[94,480],[94,504],[98,504]]},{"from":"util","to":"config","points":[[83,441],[87,441],[87,295],[129,295],[129,231],[226,231],[226,168],[230,168]]}],"connectors":[]}}</script>
+<script>
+(function () {
+  var NS = "http://www.w3.org/2000/svg";
+  var data = JSON.parse(document.getElementById("codeplan-data").textContent);
+  var plan = data.plan;
+  var layout = data.layout;
+  var plane = document.getElementById("plane");
+  plane.setAttribute("viewBox", "0 0 " + layout.width + " " + layout.height);
+  function make(name, attrs, parent) {
+    var el = document.createElementNS(NS, name);
+    for (var k in attrs) el.setAttribute(k, String(attrs[k]));
+    parent.appendChild(el);
+    return el;
+  }
+  function html(name, parent) {
+    var el = document.createElement(name);
+    parent.appendChild(el);
+    return el;
+  }
+  function textBox(box, lines, cls, parent) {
+    var clip = make("svg", { x: box.x, y: box.y, width: box.w, height: box.h, overflow: "hidden" }, parent);
+    for (var i = 0; i < lines.length; i++) {
+      var t = make("text", { x: 6, y: 16 * (i + 1), "class": i === 0 ? cls + " name" : cls }, clip);
+      t.textContent = lines[i];
+    }
+  }
+  function str(v) { return typeof v === "string" ? v : ""; }
+  function points(list) {
+    var out = [];
+    for (var i = 0; i < list.length; i++) out.push(list[i][0] + "," + list[i][1]);
+    return out.join(" ");
+  }
+
+  var names = Object.create(null);
+  var planParts = plan.parts || [];
+  var planExternals = plan.externals || [];
+  var planned = Object.create(null);
+  for (var i = 0; i < planParts.length; i++) {
+    names[planParts[i].id] = str(planParts[i].name) || planParts[i].id;
+    if (planParts[i].planned === true) planned[planParts[i].id] = true;
+  }
+  for (var e = 0; e < planExternals.length; e++) names[planExternals[e].id] = str(planExternals[e].name) || planExternals[e].id;
+  var measured = Object.create(null);
+  for (var j = 0; j < data.measure.parts.length; j++) measured[data.measure.parts[j].id] = data.measure.parts[j];
+
+  var defs = make("defs", {}, plane);
+  // The arrowhead is 6 drawing units whatever the line width or highlight,
+  // so it stays in the gap of 8 before the rectangle and inside the canvas.
+  var marker = make("marker", { id: "arrow", viewBox: "0 0 10 10", refX: 10, refY: 5, markerWidth: 6, markerHeight: 6, markerUnits: "userSpaceOnUse", orient: "auto" }, defs);
+  make("path", { d: "M0,0 L10,5 L0,10 z", "class": "arrow" }, marker);
+
+  for (var z = 0; z < layout.zones.length; z++) {
+    var zone = layout.zones[z];
+    make("rect", { x: zone.x, y: zone.y, width: zone.w, height: zone.h, "class": "zone" }, plane);
+    textBox(zone.title, [zone.name], "zone-title", plane);
+  }
+  var rects = Object.create(null);
+  for (var p = 0; p < layout.parts.length; p++) {
+    var part = layout.parts[p];
+    var m = measured[part.id] || { lines: 0, files: 0 };
+    rects[part.id] = make("rect", { x: part.x, y: part.y, width: part.w, height: part.h, "class": "part", "data-id": part.id }, plane);
+    if (planned[part.id]) rects[part.id].setAttribute("data-planned", "true");
+    textBox(part.label, [names[part.id] || part.id, m.lines + " lines", planned[part.id] ? "planned" : m.files + " files"], "label", plane);
+  }
+  for (var x = 0; x < layout.externals.length; x++) {
+    var ext = layout.externals[x];
+    rects[ext.id] = make("rect", { x: ext.x, y: ext.y, width: ext.w, height: ext.h, "class": "external", "data-id": ext.id }, plane);
+    textBox(ext.label, [names[ext.id] || ext.id, "external"], "label", plane);
+  }
+  var edges = [];
+  for (var d = 0; d < layout.edges.length; d++) {
+    var edge = layout.edges[d];
+    edges.push({ from: edge.from, to: edge.to, el: make("polyline", { points: points(edge.points), "class": "edge", "marker-end": "url(#arrow)", "data-from": edge.from, "data-to": edge.to }, plane) });
+  }
+  var connectors = [];
+  for (var c = 0; c < layout.connectors.length; c++) {
+    var con = layout.connectors[c];
+    connectors.push({ scenario: con.scenario, step: con.step, el: make("polyline", { points: points(con.points), "class": "connector", "data-scenario": con.scenario, "data-step": con.step }, plane) });
+  }
+
+  var legend = document.getElementById("legend");
+  function line(text) { html("p", legend).textContent = text; }
+  var title = str(plan.name);
+  line(data.measure.files + " files, " + data.measure.lines + " lines" + (title ? " \u00b7 " + title : ""));
+  if (data.orphans.length > 0) line(data.orphans.length + " orphan files: no part owns them");
+  if (data.unwatched > 0) line(data.unwatched + " unwatched files: code outside the watch set");
+  if (title) document.title = title;
+
+  // The theme button: auto, then light, then dark, then auto again.
+  var root = document.documentElement;
+  var themeButton = html("button", document.getElementById("tools"));
+  themeButton.type = "button";
+  themeButton.setAttribute("data-role", "theme");
+  themeButton.title = "Colour theme: auto follows the system setting";
+  function themeNow() {
+    var t = root.getAttribute("data-theme");
+    return t === "light" || t === "dark" ? t : "auto";
+  }
+  themeButton.textContent = themeNow();
+  themeButton.addEventListener("click", function () {
+    var next = { auto: "light", light: "dark", dark: "auto" }[themeNow()];
+    if (next === "auto") root.removeAttribute("data-theme");
+    else root.setAttribute("data-theme", next);
+    themeButton.textContent = next;
+    try {
+      if (next === "auto") localStorage.removeItem("codeplan-theme");
+      else localStorage.setItem("codeplan-theme", next);
+    } catch (e) {}
+  });
+
+  var scenarios = plan.scenarios || [];
+  var tasks = data.tasks || [];
+  function setHash(text) {
+    history.replaceState(null, "", text ? "#" + text : location.pathname + location.search);
+  }
+  function clearActive() {
+    for (var id in rects) rects[id].removeAttribute("data-active");
+    for (var i = 0; i < edges.length; i++) edges[i].el.removeAttribute("data-active");
+    for (var k = 0; k < connectors.length; k++) connectors[k].el.removeAttribute("data-active");
+  }
+
+  // The task pane: one button for each task, the done tasks in a closed
+  // details element after the others. Choosing a task marks its parts; a scenario
+  // walk-through and a chosen task end each other.
+  var pane = document.getElementById("tasks");
+  var written = Object.create(null);
+  var planTasks = plan.tasks || [];
+  for (var w = 0; w < planTasks.length; w++) written[planTasks[w].id] = planTasks[w];
+  var taskRows = Object.create(null);
+  var chosen = null;
+  var current = null;
+  function addTask(task, parent, fold) {
+    var from = written[task.id];
+    var button = html("button", parent);
+    button.type = "button";
+    button.setAttribute("data-task", task.id);
+    html("span", button).textContent = str(from.name) || task.id;
+    html("span", button).textContent = from.status;
+    var makes = from.makes || [];
+    var counted = Object.create(null);
+    var m = 0;
+    for (var i = 0; i < makes.length; i++) {
+      if (!counted[makes[i]]) m++;
+      counted[makes[i]] = true;
+    }
+    if (m > 0) {
+      var n = m - task.missing.length;
+      html("span", button).textContent = n + " of " + m + " files";
+      var bar = make("svg", { width: 66, height: 10, viewBox: "0 0 66 10", "class": "bar", "aria-hidden": "true" }, button);
+      make("rect", { x: 0.5, y: 0.5, width: 65, height: 9, "class": "bar-line" }, bar);
+      make("rect", { x: 1, y: 1, width: Math.round(64 * n / m), height: 8, "class": "bar-fill" }, bar);
+    }
+    taskRows[task.id] = { button: button, fold: fold, marks: task.marks, missing: null };
+    button.addEventListener("click", function () {
+      if (chosen === task.id) endTask();
+      else chooseTask(task.id);
+    });
+  }
+  if (tasks.length > 0) {
+    var doneCount = 0;
+    for (var a = 0; a < tasks.length; a++) {
+      if (written[tasks[a].id].status === "done") doneCount++;
+      else addTask(tasks[a], pane, null);
+    }
+    if (doneCount > 0) {
+      var doneFold = html("details", pane);
+      html("summary", doneFold).textContent = "Done (" + doneCount + ")";
+      for (var b = 0; b < tasks.length; b++) {
+        if (written[tasks[b].id].status === "done") addTask(tasks[b], doneFold, doneFold);
+      }
+    }
+    for (var g = 0; g < tasks.length; g++) {
+      if (tasks[g].missing.length === 0) continue;
+      var box = html("div", pane);
+      box.setAttribute("hidden", "");
+      html("p", box).textContent = "Files this task makes that are not in the repository:";
+      for (var h = 0; h < tasks[g].missing.length; h++) html("p", box).textContent = tasks[g].missing[h];
+      taskRows[tasks[g].id].missing = box;
+    }
+  }
+  // keep: the fragment is left as it is.
+  function endTask(keep) {
+    if (chosen === null) return;
+    var row = taskRows[chosen];
+    row.button.removeAttribute("aria-pressed");
+    if (row.missing) row.missing.setAttribute("hidden", "");
+    chosen = null;
+    clearActive();
+    if (!keep) setHash("");
+  }
+  function chooseTask(id, keep) {
+    if (current !== null) close(true);
+    endTask(true);
+    var row = taskRows[id];
+    chosen = id;
+    row.button.setAttribute("aria-pressed", "true");
+    if (row.fold) row.fold.setAttribute("open", "");
+    for (var i = 0; i < row.marks.length; i++) {
+      if (rects[row.marks[i]]) rects[row.marks[i]].setAttribute("data-active", "");
+    }
+    if (row.missing) row.missing.removeAttribute("hidden");
+    if (!keep) setHash("task=" + id);
+  }
+
+  var select, prev, next, stepText;
+  if (scenarios.length > 0) {
+    var walk = document.getElementById("walk");
+    select = html("select", walk);
+    select.setAttribute("aria-label", "Scenario");
+    var none = html("option", select);
+    none.value = "";
+    none.textContent = "(none)";
+    for (var s = 0; s < scenarios.length; s++) {
+      var option = html("option", select);
+      option.value = String(s);
+      option.textContent = str(scenarios[s].name) || scenarios[s].id;
+    }
+    prev = html("button", walk);
+    prev.type = "button";
+    prev.textContent = "Previous";
+    prev.title = "Previous step (Left arrow key)";
+    next = html("button", walk);
+    next.type = "button";
+    next.textContent = "Next";
+    next.title = "Next step (Right arrow key). Esc ends the walk-through.";
+    stepText = html("span", walk);
+    stepText.setAttribute("data-role", "step");
+    prev.disabled = true;
+    next.disabled = true;
+    select.addEventListener("change", function () {
+      if (select.value === "") close();
+      else open(Number(select.value), 0);
+    });
+    prev.addEventListener("click", function () { move(-1); });
+    next.addEventListener("click", function () { move(1); });
+  }
+
+  var REF = /\{([a-z0-9](?:[a-z0-9-]*[a-z0-9])?)\}/g;
+  function fill(text) {
+    return str(text).replace(REF, function (whole, id) { return id in names ? names[id] : whole; });
+  }
+  // keep: opened from the fragment, which is then left as it is.
+  function show(keep) {
+    clearActive();
+    var scenario = scenarios[current.index];
+    var steps = scenario.steps || [];
+    if (steps.length === 0) {
+      stepText.textContent = "This scenario has no steps";
+      prev.disabled = true;
+      next.disabled = true;
+      if (!keep) setHash("scenario=" + scenario.id);
+      return;
+    }
+    var k = current.step;
+    var at = steps[k].at;
+    if (rects[at]) rects[at].setAttribute("data-active", "");
+    if (k > 0 && steps[k - 1].at !== at) {
+      var before = steps[k - 1].at;
+      var lit = false;
+      for (var i = 0; i < edges.length; i++) {
+        if ((edges[i].from === before && edges[i].to === at) || (edges[i].from === at && edges[i].to === before)) {
+          edges[i].el.setAttribute("data-active", "");
+          lit = true;
+        }
+      }
+      if (!lit) {
+        for (var c = 0; c < connectors.length; c++) {
+          if (connectors[c].scenario === scenario.id && connectors[c].step === k) connectors[c].el.setAttribute("data-active", "");
+        }
+      }
+    }
+    stepText.textContent = (k + 1) + "/" + steps.length + " " + (names[at] || at) + ": " + fill(steps[k].does);
+    prev.disabled = k === 0;
+    next.disabled = k === steps.length - 1;
+    if (!keep) setHash("scenario=" + scenario.id + "&step=" + (k + 1));
+  }
+  function open(index, step, fromHash) {
+    endTask(true);
+    current = { index: index, step: step };
+    select.value = String(index);
+    show(fromHash);
+    if (!next.disabled) next.focus();
+  }
+  // keep: the fragment is left as it is.
+  function close(keep) {
+    current = null;
+    clearActive();
+    select.value = "";
+    stepText.textContent = "";
+    prev.disabled = true;
+    next.disabled = true;
+    if (!keep) setHash("");
+  }
+  function move(by) {
+    if (current === null) return;
+    var steps = scenarios[current.index].steps || [];
+    var k = current.step + by;
+    if (k < 0 || k >= steps.length) return;
+    current.step = k;
+    show();
+  }
+  document.addEventListener("keydown", function (event) {
+    if (current === null) {
+      if (chosen !== null && event.key === "Escape" && !event.altKey && !event.ctrlKey && !event.metaKey) endTask();
+      return;
+    }
+    if (document.activeElement === select) return;
+    if (event.altKey || event.ctrlKey || event.metaKey) return;
+    if (event.key === "ArrowLeft") { event.preventDefault(); move(-1); }
+    else if (event.key === "ArrowRight") { event.preventDefault(); move(1); }
+    else if (event.key === "Escape") close();
+  });
+
+  // Opens what the fragment names: on load, and when the fragment changes
+  // later (replaceState above does not fire hashchange). A scenario key is
+  // read first and the task key is then not looked at. An unknown id is
+  // ignored; no fragment at all ends the walk-through and the chosen task.
+  function fromHash(onLoad) {
+    var text = location.hash.replace(/^#/, "");
+    if (text === "") {
+      if (!onLoad) {
+        if (current !== null) close();
+        endTask();
+      }
+      return;
+    }
+    var wanted = Object.create(null);
+    var pieces = text.split("&");
+    for (var q = 0; q < pieces.length; q++) {
+      var eq = pieces[q].indexOf("=");
+      if (eq > 0) {
+        try { wanted[decodeURIComponent(pieces[q].slice(0, eq))] = decodeURIComponent(pieces[q].slice(eq + 1)); } catch (err) {}
+      }
+    }
+    if ("scenario" in wanted) {
+      for (var w = 0; w < scenarios.length; w++) {
+        if (scenarios[w].id !== wanted.scenario) continue;
+        var n = (scenarios[w].steps || []).length;
+        var k = /^[0-9]+$/.test(wanted.step || "") ? parseInt(wanted.step, 10) : 0;
+        open(w, k >= 1 && k <= n ? k - 1 : 0, true);
+        return;
+      }
+      return;
+    }
+    if ("task" in wanted && taskRows[wanted.task]) chooseTask(wanted.task, true);
+  }
+  window.addEventListener("hashchange", function () { fromHash(false); });
+  fromHash(true);
+})();
+</script>
+</body>
+</html>
